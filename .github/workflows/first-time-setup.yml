@@ -1,0 +1,106 @@
+name: First-time server setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: Server Setup
+    runs-on: ubuntu-latest
+    environment: notarize
+
+    steps:
+      - name: Run server setup as root
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: root
+          password: ${{ secrets.ROOT_PASSWORD }}
+          script: |
+            set -euo pipefail
+
+            APP_DIR=/var/www/notarize
+            UPLOAD_DIR=$APP_DIR/uploads
+            KEY_DIR=/etc/notarize/keys
+            DOMAIN=notarize.onrite.cloud
+            PHP_SOCK=/run/php/php8.3-fpm.sock
+
+            # ── Directories ────────────────────────────────────────
+            mkdir -p "$APP_DIR" "$UPLOAD_DIR" "$KEY_DIR"
+            chown -R robot:www-data "$APP_DIR" || chown -R robot "$APP_DIR"
+            chmod -R 755 "$APP_DIR"
+            chmod -R 775 "$UPLOAD_DIR"
+            echo "[1/6] Directories ready"
+
+            # ── RSA signing keys ───────────────────────────────────
+            if [ ! -f "$KEY_DIR/private.pem" ]; then
+              openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
+                   -out "$KEY_DIR/private.pem" 2>&1
+              openssl rsa -pubout -in "$KEY_DIR/private.pem" \
+                   -out "$KEY_DIR/public.pem" 2>&1
+              chmod 640 "$KEY_DIR/private.pem"
+              chmod 644 "$KEY_DIR/public.pem"
+              chown www-data:www-data "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
+              echo "[2/6] RSA-4096 key pair generated"
+            else
+              echo "[2/6] RSA keys already exist"
+            fi
+
+            # ── MySQL DB + user ────────────────────────────────────
+            MYSQL_PWD='${{ secrets.MYSQL_ROOT_PASSWORD }}' mysql -u root <<SQL
+            CREATE DATABASE IF NOT EXISTS notarize_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            CREATE USER IF NOT EXISTS 'notarize_app'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';
+            GRANT ALL PRIVILEGES ON notarize_app.* TO 'notarize_app'@'localhost';
+            FLUSH PRIVILEGES;
+            SQL
+            echo "[3/6] MySQL database and user ready"
+
+            # ── nginx vhost ────────────────────────────────────────
+            VHOST=/etc/nginx/sites-available/$DOMAIN.conf
+            cat > "$VHOST" << 'NGINXEOF'
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name notarize.onrite.cloud;
+                return 301 https://$host$request_uri;
+            }
+            server {
+                listen 443 ssl;
+                listen [::]:443 ssl;
+                server_name notarize.onrite.cloud;
+                root  /var/www/notarize/public;
+                index index.php;
+                ssl_certificate     /etc/letsencrypt/live/notarize.onrite.cloud/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/notarize.onrite.cloud/privkey.pem;
+                include             /etc/letsencrypt/options-ssl-nginx.conf;
+                ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+                client_max_body_size 12M;
+                location / { try_files $uri $uri/ =404; }
+                location ~ \.php$ {
+                    fastcgi_pass  unix:/run/php/php8.3-fpm.sock;
+                    fastcgi_index index.php;
+                    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                    include       fastcgi_params;
+                }
+                location ~ /\.(env|git) { deny all; return 404; }
+            }
+            NGINXEOF
+            ln -sf "$VHOST" /etc/nginx/sites-enabled/$DOMAIN.conf
+            echo "[4/6] nginx vhost written"
+
+            # ── SSL certificate ────────────────────────────────────
+            certbot certonly --nginx -d "$DOMAIN" \
+                --non-interactive --agree-tos -m danial@redmutex.com 2>&1
+            nginx -t && systemctl reload nginx
+            echo "[5/6] SSL certificate issued"
+
+            # ── robot user permissions ─────────────────────────────
+            usermod -aG www-data robot 2>/dev/null || true
+            # Let robot write to app dir for deploys
+            chown -R robot:www-data "$APP_DIR"
+            chmod -R g+w "$APP_DIR"
+            echo "[6/6] Permissions configured"
+
+            echo ""
+            echo "=== Setup complete! ==="
+            echo "Now trigger the Deploy workflow to push the application."
