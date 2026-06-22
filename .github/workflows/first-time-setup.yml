@@ -20,6 +20,9 @@ jobs:
           script: |
             set -euo pipefail
 
+            # Unlock sudo for this session
+            echo '${{ secrets.DJ_PASSWORD }}' | sudo -S -v
+
             APP_DIR=/var/www/notarize
             KEY_DIR=/etc/notarize/keys
             DOMAIN=notarize.onrite.cloud
