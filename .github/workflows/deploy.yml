@@ -37,6 +37,12 @@ jobs:
           PUBLIC_KEY_PATH=/etc/notarize/keys/public.pem
           UPLOAD_DIR=/var/www/notarize/uploads
           MAX_UPLOAD_MB=10
+          PAYPAL_CLIENT_ID=${{ vars.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_PRO_PLAN_ID=${{ vars.PAYPAL_PRO_PLAN_ID }}
+          PAYPAL_ELITE_PLAN_ID=${{ vars.PAYPAL_ELITE_PLAN_ID }}
+          PAYPAL_WEBHOOK_ID=${{ vars.PAYPAL_WEBHOOK_ID }}
+          PAYPAL_MODE=${{ vars.PAYPAL_MODE }}
           EOF
 
       - name: Sync files to server

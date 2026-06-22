@@ -14,6 +14,9 @@ define('APP_ENV',     $_ENV['APP_ENV']     ?? 'production');
 define('UPLOAD_DIR',  $_ENV['UPLOAD_DIR']  ?? dirname(__DIR__) . '/uploads');
 define('MAX_UPLOAD_BYTES', (int)($_ENV['MAX_UPLOAD_MB'] ?? 10) * 1024 * 1024);
 
+// PayPal (client ID is safe to expose to JS)
+define('PAYPAL_CLIENT_ID', $_ENV['PAYPAL_CLIENT_ID'] ?? '');
+
 if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
         'lifetime' => 86400,

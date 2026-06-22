@@ -37,6 +37,18 @@
                         <i class="bi bi-shield-check me-1"></i>Verify
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/plans.php">
+                        <i class="bi bi-credit-card me-1"></i>Plans
+                    </a>
+                </li>
+                <?php if (!empty($authUser['is_admin'])): ?>
+                <li class="nav-item">
+                    <a class="nav-link text-warning" href="/admin/index.php">
+                        <i class="bi bi-speedometer2 me-1"></i>Admin
+                    </a>
+                </li>
+                <?php endif; ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center gap-1" href="#" data-bs-toggle="dropdown">
                         <i class="bi bi-person-circle"></i>
@@ -44,6 +56,10 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                         <li class="dropdown-header small text-muted"><?= h($authUser['email']) ?></li>
+                        <li><hr class="dropdown-divider my-1"></li>
+                        <li><a class="dropdown-item" href="/plans.php">
+                            <i class="bi bi-credit-card me-2"></i>Billing &amp; Plans
+                        </a></li>
                         <li><hr class="dropdown-divider my-1"></li>
                         <li><a class="dropdown-item text-danger" href="/logout.php">
                             <i class="bi bi-box-arrow-right me-2"></i>Sign Out

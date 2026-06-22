@@ -56,9 +56,10 @@ class Auth
         }
 
         session_regenerate_id(true);
-        $_SESSION['user_id']    = $user['id'];
-        $_SESSION['user_name']  = $user['name'];
-        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_id']       = $user['id'];
+        $_SESSION['user_name']     = $user['name'];
+        $_SESSION['user_email']    = $user['email'];
+        $_SESSION['user_is_admin'] = (bool)($user['is_admin'] ?? false);
 
         return ['success' => true];
     }
@@ -92,9 +93,10 @@ class Auth
             return null;
         }
         return [
-            'id'    => (int)$_SESSION['user_id'],
-            'name'  => $_SESSION['user_name'],
-            'email' => $_SESSION['user_email'],
+            'id'       => (int)$_SESSION['user_id'],
+            'name'     => $_SESSION['user_name'],
+            'email'    => $_SESSION['user_email'],
+            'is_admin' => (bool)($_SESSION['user_is_admin'] ?? false),
         ];
     }
 }
