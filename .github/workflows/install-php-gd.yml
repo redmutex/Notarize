@@ -1,0 +1,23 @@
+name: Install php8.3-gd on server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install:
+    name: Install GD extension
+    runs-on: ubuntu-latest
+    environment: notarize
+
+    steps:
+      - name: Install php8.3-gd (dj → sudo)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: dj
+          password: ${{ secrets.DJ_PASSWORD }}
+          script: |
+            echo '${{ secrets.DJ_PASSWORD }}' | sudo -S -v
+            sudo apt-get install -y php8.3-gd
+            sudo systemctl reload php8.3-fpm
+            php -m | grep gd && echo "GD installed" || echo "GD not found"

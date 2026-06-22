@@ -24,6 +24,8 @@ if (!$doc) {
 $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($doc['certificate_uuid']);
 $qrSvg     = $notarize->generateQrSvg($verifyUrl);
 $isNew     = !empty($_GET['new']);
+$isPdf     = $doc['mime_type'] === 'application/pdf';
+$isImage   = str_starts_with($doc['mime_type'], 'image/');
 
 $pageTitle = 'Certificate — ' . $doc['original_filename'];
 require '../templates/header.php';
@@ -34,7 +36,7 @@ require '../templates/header.php';
     <?php if ($isNew): ?>
         <div class="alert alert-success alert-dismissible fade show">
             <i class="bi bi-check-circle-fill me-2"></i>
-            <strong>Document notarized!</strong> Your certificate is ready below.
+            <strong>Document notarized!</strong> Your certificate and signed document are ready below.
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
@@ -48,8 +50,12 @@ require '../templates/header.php';
                class="btn btn-outline-primary btn-sm me-2" target="_blank">
                 <i class="bi bi-qr-code me-1"></i>Public Verify Link
             </a>
+            <a href="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
+               class="btn btn-gold btn-sm me-2" download>
+                <i class="bi bi-download me-1"></i>Download Notarized PDF
+            </a>
             <button onclick="window.print()" class="btn btn-primary btn-sm">
-                <i class="bi bi-printer me-1"></i>Print / Save PDF
+                <i class="bi bi-printer me-1"></i>Print Certificate
             </button>
         </div>
     </div>
@@ -136,6 +142,62 @@ require '../templates/header.php';
         </div>
 
     </div><!-- /certificate -->
+
+    <!-- Notarized Document Viewer -->
+    <div class="mx-auto mt-5 d-print-none" style="max-width:780px">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-file-earmark-check me-2 text-primary"></i>Notarized Document
+            </h5>
+            <a href="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
+               class="btn btn-sm btn-gold" download>
+                <i class="bi bi-download me-1"></i>Download Notarized PDF
+            </a>
+        </div>
+
+        <!-- Notarized PDF (certificate + stamped image for image docs) -->
+        <div class="doc-viewer-wrap mb-4">
+            <div class="notary-stamp-overlay">
+                <span class="stamp-title">NOTARIZED</span>
+                <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
+                <span style="font-size:.68rem;letter-spacing:.03em">RSA-4096 &bull; SHA-256</span>
+            </div>
+            <iframe src="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
+                    class="doc-viewer-iframe"
+                    title="Notarized Document Certificate"></iframe>
+        </div>
+
+        <!-- For PDFs: also show original PDF with stamp overlay -->
+        <?php if ($isPdf): ?>
+            <h6 class="fw-bold mb-2">
+                <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Original PDF with Notarization Stamp
+            </h6>
+            <div class="doc-viewer-wrap">
+                <div class="notary-stamp-overlay">
+                    <span class="stamp-title">NOTARIZED</span>
+                    <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
+                    <span style="font-size:.68rem">Cert: <?= h(substr($doc['certificate_uuid'], 0, 8)) ?>...</span>
+                </div>
+                <iframe src="/serve.php?id=<?= (int)$doc['id'] ?>&type=original"
+                        class="doc-viewer-iframe"
+                        title="Original PDF"></iframe>
+            </div>
+        <?php elseif ($isImage): ?>
+            <h6 class="fw-bold mb-2">
+                <i class="bi bi-image me-2 text-secondary"></i>Original Document with Notarization Stamp
+            </h6>
+            <div class="doc-viewer-wrap doc-viewer-img-wrap">
+                <div class="notary-stamp-overlay">
+                    <span class="stamp-title">NOTARIZED</span>
+                    <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
+                    <span style="font-size:.68rem">Cert: <?= h(substr($doc['certificate_uuid'], 0, 8)) ?>...</span>
+                </div>
+                <img src="/serve.php?id=<?= (int)$doc['id'] ?>&type=original"
+                     class="img-fluid d-block w-100"
+                     alt="<?= h($doc['original_filename']) ?>">
+            </div>
+        <?php endif; ?>
+    </div>
 
 </div>
 

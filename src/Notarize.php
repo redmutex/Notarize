@@ -6,6 +6,7 @@ namespace App;
 use PDO;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use App\NotarizePDF;
 
 class Notarize
 {
@@ -94,7 +95,31 @@ class Notarize
             $uuid,
         ]);
 
-        return ['success' => true, 'id' => (int)$this->db->lastInsertId(), 'uuid' => $uuid];
+        $docId = (int)$this->db->lastInsertId();
+
+        // Generate notarized PDF (best-effort; does not fail the notarization)
+        try {
+            $nameStmt = $this->db->prepare('SELECT name FROM users WHERE id = ?');
+            $nameStmt->execute([$userId]);
+            $docData = [
+                'user_id'           => $userId,
+                'certificate_uuid'  => $uuid,
+                'stored_filename'   => $storedName,
+                'original_filename' => $file['name'],
+                'mime_type'         => $mimeType,
+                'file_size'         => $file['size'],
+                'file_hash'         => $fileHash,
+                'signature'         => $signature,
+                'notarized_at'      => date('Y-m-d H:i:s'),
+                'user_name'         => $nameStmt->fetchColumn() ?? '',
+            ];
+            $verifyUrl = APP_URL . '/verify.php?uuid=' . $uuid;
+            (new NotarizePDF())->generate($docData, $verifyUrl, $this->uploadDir);
+        } catch (\Throwable $e) {
+            // Non-critical — PDF is generated lazily on first view if this fails
+        }
+
+        return ['success' => true, 'id' => $docId, 'uuid' => $uuid];
     }
 
     public function getDocument(int $id, int $userId): ?array
