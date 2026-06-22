@@ -1,0 +1,64 @@
+name: Deploy to notarize.onrite.cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: notarize
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: openssl, pdo_mysql, fileinfo, mbstring
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Write .env for deploy
+        run: |
+          cat > .env <<EOF
+          APP_NAME=Notarize
+          APP_URL=https://notarize.onrite.cloud
+          APP_ENV=production
+          DB_HOST=localhost
+          DB_NAME=notarize_app
+          DB_USER=notarize_app
+          DB_PASS=${{ secrets.DB_PASSWORD }}
+          PRIVATE_KEY_PATH=/etc/notarize/keys/private.pem
+          PUBLIC_KEY_PATH=/etc/notarize/keys/public.pem
+          UPLOAD_DIR=/var/www/notarize/uploads
+          MAX_UPLOAD_MB=10
+          EOF
+
+      - name: Sync files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ".,!.git"
+          target: /var/www/notarize
+          strip_components: 0
+
+      - name: Run migrations & reload
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd /var/www/notarize
+            chmod -R o-rwx .
+            chmod 750 uploads/ 2>/dev/null || true
+            php migrations/migrate.php
+            echo "Deploy finished: $(date -u)"

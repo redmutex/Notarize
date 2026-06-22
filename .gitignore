@@ -1,0 +1,7 @@
+/vendor/
+/uploads/
+/.env
+*.pem
+*.key
+composer.phar
+composer-setup.php
