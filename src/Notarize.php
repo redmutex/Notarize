@@ -143,6 +143,27 @@ class Notarize
         return $stmt->fetchAll();
     }
 
+    public function delete(int $id, int $userId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT user_id, stored_filename FROM documents WHERE id = ?'
+        );
+        $stmt->execute([$id]);
+        $doc = $stmt->fetch();
+
+        if (!$doc || (int)$doc['user_id'] !== $userId) {
+            return false;
+        }
+
+        $file = $this->uploadDir . '/' . $userId . '/' . $doc['stored_filename'];
+        if (is_file($file)) {
+            @unlink($file);
+        }
+
+        $this->db->prepare('DELETE FROM documents WHERE id = ?')->execute([$id]);
+        return true;
+    }
+
     public function generateQrSvg(string $url): string
     {
         $options = new QROptions([

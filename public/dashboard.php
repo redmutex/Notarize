@@ -13,6 +13,7 @@ $notarize = new Notarize();
 $docs     = $notarize->getUserDocuments($authUser['id']);
 
 $successMsg = flash('success');
+$errorMsg   = flash('error');
 $pageTitle  = 'Dashboard';
 require '../templates/header.php';
 ?>
@@ -26,6 +27,13 @@ require '../templates/header.php';
         </div>
     <?php endif; ?>
 
+    <?php if ($errorMsg): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-circle me-2"></i><?= h($errorMsg) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
             <h2 class="fw-bold mb-1">
@@ -34,7 +42,7 @@ require '../templates/header.php';
             <p class="text-muted mb-0">Welcome back, <?= h($authUser['name']) ?></p>
         </div>
         <a href="/upload.php" class="btn btn-primary">
-            <i class="bi bi-cloud-upload me-2"></i>Notarize New Document
+            <i class="bi bi-cloud-upload me-2"></i>Notarize Documents
         </a>
     </div>
 
@@ -88,9 +96,19 @@ require '../templates/header.php';
                                     <i class="bi bi-patch-check me-1"></i>Certificate
                                 </a>
                                 <a href="/verify.php?uuid=<?= h($doc['certificate_uuid']) ?>"
-                                   class="btn btn-sm btn-outline-secondary" target="_blank">
+                                   class="btn btn-sm btn-outline-secondary me-1" target="_blank"
+                                   title="Verify">
                                     <i class="bi bi-qr-code"></i>
                                 </a>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        title="Remove"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#deleteModal"
+                                        data-doc-id="<?= (int)$doc['id'] ?>"
+                                        data-doc-name="<?= h($doc['original_filename']) ?>">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -103,5 +121,46 @@ require '../templates/header.php';
         </p>
     <?php endif; ?>
 </div>
+
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="deleteModalLabel">
+                    <i class="bi bi-trash3 text-danger me-2"></i>Remove Document
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="mb-1">Are you sure you want to permanently remove:</p>
+                <p class="fw-semibold text-break" id="deleteDocName"></p>
+                <div class="alert alert-warning small py-2 mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    This deletes the stored file and database record. Existing certificates
+                    for this document will no longer verify.
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="/delete.php" id="deleteForm">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="id" id="deleteDocId">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash3 me-1"></i>Remove Document
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('deleteModal').addEventListener('show.bs.modal', function (e) {
+    const btn  = e.relatedTarget;
+    document.getElementById('deleteDocId').value   = btn.dataset.docId;
+    document.getElementById('deleteDocName').textContent = btn.dataset.docName;
+});
+</script>
 
 <?php require '../templates/footer.php'; ?>
