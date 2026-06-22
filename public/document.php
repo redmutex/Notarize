@@ -24,8 +24,6 @@ if (!$doc) {
 $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($doc['certificate_uuid']);
 $qrSvg     = $notarize->generateQrSvg($verifyUrl);
 $isNew     = !empty($_GET['new']);
-$isPdf     = $doc['mime_type'] === 'application/pdf';
-$isImage   = str_starts_with($doc['mime_type'], 'image/');
 
 $pageTitle = 'Certificate — ' . $doc['original_filename'];
 require '../templates/header.php';
@@ -36,7 +34,7 @@ require '../templates/header.php';
     <?php if ($isNew): ?>
         <div class="alert alert-success alert-dismissible fade show">
             <i class="bi bi-check-circle-fill me-2"></i>
-            <strong>Document notarized!</strong> Your certificate and signed document are ready below.
+            <strong>Document notarized!</strong> Your notarized document is ready below.
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
@@ -52,7 +50,7 @@ require '../templates/header.php';
             </a>
             <a href="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
                class="btn btn-gold btn-sm me-2" download>
-                <i class="bi bi-download me-1"></i>Download Notarized PDF
+                <i class="bi bi-download me-1"></i>Download Notarized Document
             </a>
             <button onclick="window.print()" class="btn btn-primary btn-sm">
                 <i class="bi bi-printer me-1"></i>Print Certificate
@@ -60,8 +58,8 @@ require '../templates/header.php';
         </div>
     </div>
 
-    <!-- Certificate -->
-    <div class="certificate mx-auto" style="max-width:780px">
+    <!-- Web certificate (print-friendly) -->
+    <div class="certificate mx-auto d-print-block" style="max-width:780px">
 
         <div class="certificate-header">
             <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
@@ -83,38 +81,14 @@ require '../templates/header.php';
         <div class="row g-4 mt-1">
             <div class="col-md-8">
                 <table class="cert-table w-100">
-                    <tr>
-                        <th>Certificate ID</th>
-                        <td class="font-monospace small"><?= h($doc['certificate_uuid']) ?></td>
-                    </tr>
-                    <tr>
-                        <th>Document Name</th>
-                        <td><?= h($doc['original_filename']) ?></td>
-                    </tr>
-                    <tr>
-                        <th>File Type</th>
-                        <td><?= h($doc['mime_type']) ?></td>
-                    </tr>
-                    <tr>
-                        <th>File Size</th>
-                        <td><?= h(format_bytes((int)$doc['file_size'])) ?></td>
-                    </tr>
-                    <tr>
-                        <th>SHA-256 Hash</th>
-                        <td class="font-monospace small text-break"><?= h($doc['file_hash']) ?></td>
-                    </tr>
-                    <tr>
-                        <th>Notarized By</th>
-                        <td><?= h($doc['user_name']) ?></td>
-                    </tr>
-                    <tr>
-                        <th>Date &amp; Time</th>
-                        <td><?= h(date('F j, Y  H:i:s', strtotime($doc['notarized_at']))) ?> UTC</td>
-                    </tr>
-                    <tr>
-                        <th>Algorithm</th>
-                        <td>RSA-4096 / SHA-256</td>
-                    </tr>
+                    <tr><th>Certificate ID</th><td class="font-monospace small"><?= h($doc['certificate_uuid']) ?></td></tr>
+                    <tr><th>Document Name</th><td><?= h($doc['original_filename']) ?></td></tr>
+                    <tr><th>File Type</th><td><?= h($doc['mime_type']) ?></td></tr>
+                    <tr><th>File Size</th><td><?= h(format_bytes((int)$doc['file_size'])) ?></td></tr>
+                    <tr><th>SHA-256 Hash</th><td class="font-monospace small text-break"><?= h($doc['file_hash']) ?></td></tr>
+                    <tr><th>Notarized By</th><td><?= h($doc['user_name']) ?></td></tr>
+                    <tr><th>Date &amp; Time</th><td><?= h(date('F j, Y  H:i:s', strtotime($doc['notarized_at']))) ?> UTC</td></tr>
+                    <tr><th>Algorithm</th><td>RSA-4096 / SHA-256</td></tr>
                 </table>
 
                 <div class="cert-signature-box mt-3">
@@ -127,9 +101,7 @@ require '../templates/header.php';
 
             <div class="col-md-4 text-center">
                 <div class="cert-section-label mb-2">Scan to Verify</div>
-                <div class="cert-qr">
-                    <?= $qrSvg ?>
-                </div>
+                <div class="cert-qr"><?= $qrSvg ?></div>
                 <p class="small text-muted mt-2 mb-0" style="word-break:break-all;font-size:.72rem">
                     <?= h($verifyUrl) ?>
                 </p>
@@ -140,23 +112,24 @@ require '../templates/header.php';
             <span>Issued by Notarize &bull; notarize.onrite.cloud</span>
             <span>Verification: <?= h($verifyUrl) ?></span>
         </div>
+    </div>
 
-    </div><!-- /certificate -->
-
-    <!-- Notarized Document Viewer -->
+    <!-- Notarized Document — single PDF containing original + certificate -->
     <div class="mx-auto mt-5 d-print-none" style="max-width:780px">
         <div class="d-flex align-items-center justify-content-between mb-3">
             <h5 class="fw-bold mb-0">
                 <i class="bi bi-file-earmark-check me-2 text-primary"></i>Notarized Document
+                <span class="text-muted fw-normal small ms-2">
+                    Original + certificate of notarization, signature on every page
+                </span>
             </h5>
             <a href="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
                class="btn btn-sm btn-gold" download>
-                <i class="bi bi-download me-1"></i>Download Notarized PDF
+                <i class="bi bi-download me-1"></i>Download PDF
             </a>
         </div>
 
-        <!-- Notarized PDF (certificate + stamped image for image docs) -->
-        <div class="doc-viewer-wrap mb-4">
+        <div class="doc-viewer-wrap">
             <div class="notary-stamp-overlay">
                 <span class="stamp-title">NOTARIZED</span>
                 <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
@@ -164,39 +137,8 @@ require '../templates/header.php';
             </div>
             <iframe src="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
                     class="doc-viewer-iframe"
-                    title="Notarized Document Certificate"></iframe>
+                    title="Notarized Document"></iframe>
         </div>
-
-        <!-- For PDFs: also show original PDF with stamp overlay -->
-        <?php if ($isPdf): ?>
-            <h6 class="fw-bold mb-2">
-                <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Original PDF with Notarization Stamp
-            </h6>
-            <div class="doc-viewer-wrap">
-                <div class="notary-stamp-overlay">
-                    <span class="stamp-title">NOTARIZED</span>
-                    <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
-                    <span style="font-size:.68rem">Cert: <?= h(substr($doc['certificate_uuid'], 0, 8)) ?>...</span>
-                </div>
-                <iframe src="/serve.php?id=<?= (int)$doc['id'] ?>&type=original"
-                        class="doc-viewer-iframe"
-                        title="Original PDF"></iframe>
-            </div>
-        <?php elseif ($isImage): ?>
-            <h6 class="fw-bold mb-2">
-                <i class="bi bi-image me-2 text-secondary"></i>Original Document with Notarization Stamp
-            </h6>
-            <div class="doc-viewer-wrap doc-viewer-img-wrap">
-                <div class="notary-stamp-overlay">
-                    <span class="stamp-title">NOTARIZED</span>
-                    <?= h(date('M j, Y', strtotime($doc['notarized_at']))) ?><br>
-                    <span style="font-size:.68rem">Cert: <?= h(substr($doc['certificate_uuid'], 0, 8)) ?>...</span>
-                </div>
-                <img src="/serve.php?id=<?= (int)$doc['id'] ?>&type=original"
-                     class="img-fluid d-block w-100"
-                     alt="<?= h($doc['original_filename']) ?>">
-            </div>
-        <?php endif; ?>
     </div>
 
 </div>
