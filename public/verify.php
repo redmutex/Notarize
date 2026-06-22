@@ -26,10 +26,11 @@ require '../templates/header.php';
 
             <div class="text-center mb-5">
                 <h2 class="fw-bold">
-                    <i class="bi bi-shield-check me-2 text-primary"></i>Document Verification
+                    <i class="bi bi-shield-check me-2 text-primary"></i>Verify Document Authenticity
                 </h2>
-                <p class="text-muted">
-                    Enter a certificate UUID or scan the QR code from a notarized document to verify its authenticity.
+                <p class="text-muted mx-auto" style="max-width:500px">
+                    Enter the certificate ID from a notarized document, or scan its QR code,
+                    to confirm the document is authentic and unchanged since notarization.
                 </p>
             </div>
 
@@ -37,12 +38,14 @@ require '../templates/header.php';
             <form method="get" class="mb-4">
                 <div class="input-group input-group-lg shadow-sm">
                     <span class="input-group-text bg-white border-end-0">
-                        <i class="bi bi-qr-code text-muted"></i>
+                        <i class="bi bi-shield-lock text-muted"></i>
                     </span>
                     <input type="text" name="uuid" class="form-control border-start-0 ps-0"
-                           placeholder="Paste certificate UUID here…"
+                           placeholder="Enter certificate ID (UUID)…"
                            value="<?= h($uuid) ?>" required>
-                    <button class="btn btn-primary px-4" type="submit">Verify</button>
+                    <button class="btn btn-primary px-4" type="submit">
+                        <i class="bi bi-shield-check me-1"></i>Verify
+                    </button>
                 </div>
             </form>
 
@@ -50,8 +53,8 @@ require '../templates/header.php';
                 <div class="card border-0 shadow-sm text-center py-5">
                     <div class="card-body">
                         <i class="bi bi-x-circle-fill text-danger" style="font-size:3rem"></i>
-                        <h4 class="mt-3 fw-bold">Certificate Not Found</h4>
-                        <p class="text-muted">No notarization record exists for UUID: <code><?= h($uuid) ?></code></p>
+                        <h4 class="mt-3 fw-bold">No Record Found</h4>
+                        <p class="text-muted">No notarization record matches ID: <code><?= h($uuid) ?></code></p>
                     </div>
                 </div>
 
@@ -63,16 +66,16 @@ require '../templates/header.php';
                     <div class="<?= $sigValid === true ? 'bg-success' : ($sigValid === false ? 'bg-danger' : 'bg-warning') ?> text-white p-4 text-center">
                         <?php if ($sigValid === true): ?>
                             <i class="bi bi-patch-check-fill" style="font-size:2.5rem"></i>
-                            <h3 class="fw-bold mt-2 mb-1">Signature Valid</h3>
-                            <p class="mb-0 opacity-75">This document's digital signature is cryptographically verified.</p>
+                            <h3 class="fw-bold mt-2 mb-1">Authentic &amp; Unmodified</h3>
+                            <p class="mb-0 opacity-75">The digital signature is valid. This document has not been altered since notarization.</p>
                         <?php elseif ($sigValid === false): ?>
                             <i class="bi bi-patch-exclamation-fill" style="font-size:2.5rem"></i>
-                            <h3 class="fw-bold mt-2 mb-1">Signature Invalid</h3>
-                            <p class="mb-0 opacity-75">The digital signature could not be verified. The document may have been tampered with.</p>
+                            <h3 class="fw-bold mt-2 mb-1">Signature Mismatch</h3>
+                            <p class="mb-0 opacity-75">The digital signature could not be verified. This document may have been tampered with.</p>
                         <?php else: ?>
                             <i class="bi bi-patch-question-fill" style="font-size:2.5rem"></i>
-                            <h3 class="fw-bold mt-2 mb-1">Certificate Found</h3>
-                            <p class="mb-0 opacity-75">Signature verification key unavailable at this time.</p>
+                            <h3 class="fw-bold mt-2 mb-1">Record Found</h3>
+                            <p class="mb-0 opacity-75">The notarization record exists but the signature verification key is temporarily unavailable.</p>
                         <?php endif; ?>
                     </div>
 
@@ -99,8 +102,8 @@ require '../templates/header.php';
                         <div class="alert alert-info small mt-3 mb-0">
                             <i class="bi bi-info-circle me-2"></i>
                             <strong>Independent verification:</strong>
-                            Compute the SHA-256 hash of your original file and compare it to the hash above.
-                            Matching hashes confirm the file is unchanged since notarization.
+                            Compute the SHA-256 hash of the original file and compare it to the hash shown above.
+                            A matching hash confirms the file is byte-for-byte identical to what was notarized.
                         </div>
                     </div>
                 </div>

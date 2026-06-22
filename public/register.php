@@ -48,8 +48,8 @@ require '../templates/header.php';
                 <div class="card-body p-4 p-md-5">
                     <div class="text-center mb-4">
                         <i class="bi bi-patch-check-fill text-primary" style="font-size:2.5rem"></i>
-                        <h2 class="fw-bold mt-2">Create Account</h2>
-                        <p class="text-muted small">Start notarizing your documents</p>
+                        <h2 class="fw-bold mt-2">Create your account</h2>
+                        <p class="text-muted small">Start protecting documents with cryptographic proof</p>
                     </div>
 
                     <?php foreach ($errors as $e): ?>

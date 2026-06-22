@@ -1,12 +1,27 @@
 </main>
 
-<footer class="footer mt-auto py-4 bg-primary-dark text-white-50">
-    <div class="container text-center">
-        <small>
-            &copy; <?= date('Y') ?> <strong class="text-white">Notarize</strong> &mdash;
-            Cryptographic document notarization &mdash;
-            <a href="/verify.php" class="text-white-50">Verify a Document</a>
-        </small>
+<footer class="footer mt-auto py-4 bg-primary-dark">
+    <div class="container">
+        <div class="row align-items-center gy-2">
+            <div class="col-md-5">
+                <div class="d-flex align-items-center gap-2 text-white">
+                    <i class="bi bi-shield-lock-fill text-gold"></i>
+                    <strong>Notarize</strong>
+                    <span class="text-white-50 small">— Cryptographic Document Authentication</span>
+                </div>
+            </div>
+            <div class="col-md-7 text-md-end">
+                <span class="text-white-50 small me-3">
+                    &copy; <?= date('Y') ?> Notarize
+                </span>
+                <a href="/verify.php" class="text-white-50 small me-3 text-decoration-none">
+                    <i class="bi bi-shield-check me-1"></i>Verify a Document
+                </a>
+                <a href="/login.php" class="text-white-50 small text-decoration-none">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Sign In
+                </a>
+            </div>
+        </div>
     </div>
 </footer>
 

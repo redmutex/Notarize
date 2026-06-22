@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = 'Notarize Documents';
+$pageTitle = 'New Notarization';
 require '../templates/header.php';
 ?>
 
@@ -50,10 +50,11 @@ require '../templates/header.php';
         <div class="col-lg-7">
 
             <h2 class="fw-bold mb-1">
-                <i class="bi bi-cloud-upload me-2 text-primary"></i>Notarize Documents
+                <i class="bi bi-shield-plus me-2 text-primary"></i>New Notarization
             </h2>
             <p class="text-muted mb-4">
-                Upload one or more documents to receive cryptographically signed certificates.
+                Upload one or more documents. Each file will be hashed with SHA-256,
+                signed with an RSA-4096 key, and packaged into a verifiable notarized PDF.
             </p>
 
             <?php if (!empty($results)): ?>
@@ -62,8 +63,9 @@ require '../templates/header.php';
 
                 <?php if ($successes): ?>
                     <div class="alert alert-success alert-dismissible fade show">
-                        <i class="bi bi-check-circle-fill me-2"></i>
-                        <strong><?= count($successes) ?> document<?= count($successes) !== 1 ? 's' : '' ?> notarized successfully.</strong>
+                        <i class="bi bi-patch-check-fill me-2"></i>
+                        <strong><?= count($successes) ?> document<?= count($successes) !== 1 ? 's' : '' ?> notarized.</strong>
+                        Certificates are ready below.
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                     <div class="card border-0 shadow-sm mb-4">
@@ -75,8 +77,8 @@ require '../templates/header.php';
                                     <span class="fw-semibold"><?= h($r['name']) ?></span>
                                 </span>
                                 <a href="/document.php?id=<?= (int)$r['id'] ?>"
-                                   class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-patch-check me-1"></i>View Certificate
+                                   class="btn btn-sm btn-gold">
+                                    <i class="bi bi-patch-check me-1"></i>Open Certificate
                                 </a>
                             </li>
                         <?php endforeach; ?>
@@ -120,8 +122,9 @@ require '../templates/header.php';
                         </div>
 
                         <div class="alert alert-info small py-2 mb-4">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Each file is hashed with SHA-256 and signed with RSA-4096. Files are stored securely and never shared.
+                            <i class="bi bi-lock-fill me-2"></i>
+                            Files are stored securely on the server and never shared.
+                            Your notarized PDF is ready immediately after upload.
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn" disabled>

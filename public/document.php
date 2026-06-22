@@ -25,28 +25,31 @@ $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($doc['certificate_uuid'])
 $qrSvg     = $notarize->generateQrSvg($verifyUrl);
 $isNew     = !empty($_GET['new']);
 
-$pageTitle = 'Certificate — ' . $doc['original_filename'];
+$pageTitle = $doc['original_filename'] . ' — Notarized';
 require '../templates/header.php';
 ?>
 
 <div class="container py-4">
 
     <?php if ($isNew): ?>
-        <div class="alert alert-success alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i>
-            <strong>Document notarized!</strong> Your notarized document is ready below.
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center">
+            <i class="bi bi-patch-check-fill me-2 fs-5"></i>
+            <div>
+                <strong>Notarized successfully.</strong>
+                Your document has been signed and the certificate is ready below.
+            </div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
     <div class="d-flex justify-content-between align-items-center mb-4 d-print-none">
         <a href="/dashboard.php" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            <i class="bi bi-arrow-left me-1"></i>My Documents
         </a>
         <div>
             <a href="/verify.php?uuid=<?= h($doc['certificate_uuid']) ?>"
                class="btn btn-outline-primary btn-sm me-2" target="_blank">
-                <i class="bi bi-qr-code me-1"></i>Public Verify Link
+                <i class="bi bi-shield-check me-1"></i>Public Verification
             </a>
             <a href="/serve.php?id=<?= (int)$doc['id'] ?>&type=notarized"
                class="btn btn-gold btn-sm me-2" download>

@@ -14,7 +14,7 @@ $docs     = $notarize->getUserDocuments($authUser['id']);
 
 $successMsg = flash('success');
 $errorMsg   = flash('error');
-$pageTitle  = 'Dashboard';
+$pageTitle  = 'My Documents';
 require '../templates/header.php';
 ?>
 
@@ -37,23 +37,33 @@ require '../templates/header.php';
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
             <h2 class="fw-bold mb-1">
-                <i class="bi bi-grid me-2 text-primary"></i>My Documents
+                <i class="bi bi-folder2-open me-2 text-primary"></i>Document Vault
             </h2>
-            <p class="text-muted mb-0">Welcome back, <?= h($authUser['name']) ?></p>
+            <p class="text-muted mb-0">
+                <?= h($authUser['name']) ?> &mdash;
+                <?php if (empty($docs)): ?>
+                    no documents notarized yet
+                <?php else: ?>
+                    <?= count($docs) ?> document<?= count($docs) !== 1 ? 's' : '' ?> notarized
+                <?php endif; ?>
+            </p>
         </div>
         <a href="/upload.php" class="btn btn-primary">
-            <i class="bi bi-cloud-upload me-2"></i>Notarize Documents
+            <i class="bi bi-plus-circle me-2"></i>New Notarization
         </a>
     </div>
 
     <?php if (empty($docs)): ?>
         <div class="card border-0 shadow-sm text-center py-5">
             <div class="card-body">
-                <i class="bi bi-file-earmark-plus text-muted" style="font-size:3.5rem"></i>
-                <h4 class="mt-3 fw-bold">No documents yet</h4>
-                <p class="text-muted">Upload your first document to get a tamper-proof digital certificate.</p>
+                <i class="bi bi-shield-plus text-muted" style="font-size:3.5rem;opacity:.5"></i>
+                <h4 class="mt-3 fw-bold">Your vault is empty</h4>
+                <p class="text-muted mx-auto" style="max-width:380px">
+                    Notarize a document to create a tamper-proof, cryptographically signed record
+                    with a certificate anyone can verify.
+                </p>
                 <a href="/upload.php" class="btn btn-primary btn-lg mt-2">
-                    <i class="bi bi-cloud-upload me-2"></i>Notarize Your First Document
+                    <i class="bi bi-plus-circle me-2"></i>Notarize Your First Document
                 </a>
             </div>
         </div>
@@ -66,7 +76,7 @@ require '../templates/header.php';
                             <th>Document</th>
                             <th>Type</th>
                             <th>Size</th>
-                            <th>Notarized</th>
+                            <th>Notarized On</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -74,7 +84,7 @@ require '../templates/header.php';
                     <?php foreach ($docs as $doc): ?>
                         <tr>
                             <td>
-                                <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+                                <i class="bi bi-file-earmark-lock2 me-2 text-primary"></i>
                                 <span title="<?= h($doc['original_filename']) ?>">
                                     <?= h(mb_strimwidth($doc['original_filename'], 0, 40, '…')) ?>
                                 </span>
@@ -92,17 +102,17 @@ require '../templates/header.php';
                             </td>
                             <td class="text-end">
                                 <a href="/document.php?id=<?= (int)$doc['id'] ?>"
-                                   class="btn btn-sm btn-outline-primary me-1">
-                                    <i class="bi bi-patch-check me-1"></i>Certificate
+                                   class="btn btn-sm btn-gold me-1">
+                                    <i class="bi bi-patch-check me-1"></i>View
                                 </a>
                                 <a href="/verify.php?uuid=<?= h($doc['certificate_uuid']) ?>"
                                    class="btn btn-sm btn-outline-secondary me-1" target="_blank"
-                                   title="Verify">
-                                    <i class="bi bi-qr-code"></i>
+                                   title="Public verification page">
+                                    <i class="bi bi-shield-check"></i>
                                 </a>
                                 <button type="button"
                                         class="btn btn-sm btn-outline-danger"
-                                        title="Remove"
+                                        title="Permanently remove this document"
                                         data-bs-toggle="modal"
                                         data-bs-target="#deleteModal"
                                         data-doc-id="<?= (int)$doc['id'] ?>"
@@ -116,9 +126,6 @@ require '../templates/header.php';
                 </table>
             </div>
         </div>
-        <p class="text-muted small mt-2">
-            <?= count($docs) ?> document<?= count($docs) !== 1 ? 's' : '' ?> notarized
-        </p>
     <?php endif; ?>
 </div>
 
@@ -128,17 +135,17 @@ require '../templates/header.php';
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold" id="deleteModalLabel">
-                    <i class="bi bi-trash3 text-danger me-2"></i>Remove Document
+                    <i class="bi bi-trash3 text-danger me-2"></i>Delete Document
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pt-2">
-                <p class="mb-1">Are you sure you want to permanently remove:</p>
+                <p class="mb-1">Permanently delete this document?</p>
                 <p class="fw-semibold text-break" id="deleteDocName"></p>
                 <div class="alert alert-warning small py-2 mb-0">
                     <i class="bi bi-exclamation-triangle me-1"></i>
-                    This deletes the stored file and database record. Existing certificates
-                    for this document will no longer verify.
+                    The stored file and all notarization records will be removed.
+                    Any existing certificates for this document will no longer be verifiable.
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
@@ -147,7 +154,7 @@ require '../templates/header.php';
                     <?= csrf_field() ?>
                     <input type="hidden" name="id" id="deleteDocId">
                     <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash3 me-1"></i>Remove Document
+                        <i class="bi bi-trash3 me-1"></i>Delete Document
                     </button>
                 </form>
             </div>
