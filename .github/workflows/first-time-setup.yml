@@ -26,15 +26,16 @@ jobs:
             APP_DIR=/var/www/notarize
             KEY_DIR=/etc/notarize/keys
             DOMAIN=notarize.onrite.cloud
+            VHOST=/etc/nginx/sites-available/$DOMAIN.conf
 
-            # ── Directories ────────────────────────────────────────
+            # ── [1/6] Directories ──────────────────────────────────
             sudo mkdir -p "$APP_DIR/uploads" "$APP_DIR/public" "$KEY_DIR"
             sudo chown -R robot:www-data "$APP_DIR" 2>/dev/null || sudo chown -R robot "$APP_DIR"
             sudo chmod -R 755 "$APP_DIR"
             sudo chmod -R 775 "$APP_DIR/uploads"
             echo "[1/6] Directories OK"
 
-            # ── RSA signing keys ───────────────────────────────────
+            # ── [2/6] RSA signing keys ─────────────────────────────
             if [ ! -f "$KEY_DIR/private.pem" ]; then
               sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
                 -out "$KEY_DIR/private.pem"
@@ -48,7 +49,7 @@ jobs:
               echo "[2/6] RSA keys already exist"
             fi
 
-            # ── MySQL ──────────────────────────────────────────────
+            # ── [3/6] MySQL ────────────────────────────────────────
             sudo MYSQL_PWD="$NOTARIZE_MYSQL_ROOT" mysql -u root \
               -e "CREATE DATABASE IF NOT EXISTS notarize_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
             sudo MYSQL_PWD="$NOTARIZE_MYSQL_ROOT" mysql -u root \
@@ -57,50 +58,28 @@ jobs:
               -e "GRANT ALL PRIVILEGES ON notarize_app.* TO 'notarize_app'@'localhost'; FLUSH PRIVILEGES;"
             echo "[3/6] MySQL DB and user ready"
 
-            # ── nginx vhost ────────────────────────────────────────
-            VHOST=/etc/nginx/sites-available/$DOMAIN.conf
-            sudo tee "$VHOST" > /dev/null << 'NGINXEOF'
-            server {
-                listen 80;
-                listen [::]:80;
-                server_name notarize.onrite.cloud;
-                return 301 https://$host$request_uri;
-            }
-            server {
-                listen 443 ssl;
-                listen [::]:443 ssl;
-                server_name notarize.onrite.cloud;
-                root  /var/www/notarize/public;
-                index index.php;
-                ssl_certificate     /etc/letsencrypt/live/notarize.onrite.cloud/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/notarize.onrite.cloud/privkey.pem;
-                include             /etc/letsencrypt/options-ssl-nginx.conf;
-                ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
-                client_max_body_size 12M;
-                location / { try_files $uri $uri/ =404; }
-                location ~ \.php$ {
-                    fastcgi_pass  unix:/run/php/php8.3-fpm.sock;
-                    fastcgi_index index.php;
-                    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-                    include       fastcgi_params;
-                }
-                location ~ /\.(env|git) { deny all; return 404; }
-            }
-            NGINXEOF
+            # ── [4/6] nginx HTTP-only vhost (for ACME challenge) ───
+            printf 'server {\n    listen 80;\n    listen [::]:80;\n    server_name %s;\n    root /var/www/notarize/public;\n    location /.well-known/acme-challenge/ { try_files $uri =404; }\n    location / { return 444; }\n}\n' "$DOMAIN" | sudo tee "$VHOST" > /dev/null
             sudo ln -sf "$VHOST" /etc/nginx/sites-enabled/$DOMAIN.conf
-            echo "[4/6] nginx vhost written"
-
-            # ── SSL certificate ────────────────────────────────────
-            sudo certbot certonly --nginx -d "$DOMAIN" \
-              --non-interactive --agree-tos -m danial@redmutex.com
             sudo nginx -t && sudo systemctl reload nginx
+            echo "[4/6] nginx HTTP vhost enabled"
+
+            # ── [5/6] SSL certificate ──────────────────────────────
+            sudo certbot certonly --webroot -w "$APP_DIR/public" -d "$DOMAIN" \
+              --non-interactive --agree-tos -m danial@redmutex.com
             echo "[5/6] SSL certificate issued"
 
-            # ── robot group + permissions ──────────────────────────
+            # Write the full HTTPS nginx vhost now that cert exists
+            printf 'server {\n    listen 80;\n    listen [::]:80;\n    server_name %s;\n    return 301 https://$host$request_uri;\n}\nserver {\n    listen 443 ssl;\n    listen [::]:443 ssl;\n    server_name %s;\n    root /var/www/notarize/public;\n    index index.php;\n    ssl_certificate /etc/letsencrypt/live/%s/fullchain.pem;\n    ssl_certificate_key /etc/letsencrypt/live/%s/privkey.pem;\n    include /etc/letsencrypt/options-ssl-nginx.conf;\n    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;\n    client_max_body_size 12M;\n    location / { try_files $uri $uri/ =404; }\n    location ~ \\.php$ {\n        fastcgi_pass unix:/run/php/php8.3-fpm.sock;\n        fastcgi_index index.php;\n        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n        include fastcgi_params;\n    }\n    location ~ /\\.(env|git) { deny all; return 404; }\n}\n' \
+              "$DOMAIN" "$DOMAIN" "$DOMAIN" "$DOMAIN" | sudo tee "$VHOST" > /dev/null
+            sudo nginx -t && sudo systemctl reload nginx
+            echo "[5b] HTTPS nginx vhost enabled"
+
+            # ── [6/6] robot group + permissions ───────────────────
             sudo usermod -aG www-data robot 2>/dev/null || true
             sudo chown -R robot:www-data "$APP_DIR"
             sudo chmod -R g+w "$APP_DIR"
-            echo "[6/6] Permissions set"
+            echo "[6/6] Permissions set for robot deploy user"
 
             echo ""
             echo "=== Server setup complete. Run the Deploy workflow next. ==="
