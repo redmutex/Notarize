@@ -201,19 +201,26 @@ class NotarizePDF
         $pdf->SetLineWidth(0.5);
         $pdf->Line($divX, $fY + 1.0, $divX, $fY + $fH - 1.0);
 
-        // ── Shield-lock icon (matches website navbar logo) ──
-        $iconSize = 7.5;
-        $iconX    = $pageW - $logoZone + 2.0;
-        $iconY    = $fY + ($fH - $iconSize) / 2.0;
-        $shieldSvg = __DIR__ . '/logo-shield.svg';
-        if (is_file($shieldSvg)) {
-            try {
-                $pdf->imageSVG($shieldSvg, $iconX, $iconY, $iconSize, $iconSize);
-            } catch (\Throwable $e) { /* skip if SVG render fails */ }
-        }
+        // ── Shield polygon drawn natively (avoids TCPDF SVG rendering quirks) ──
+        $iSz = 7.5;
+        $iX  = $pageW - $logoZone + 2.5;
+        $iY  = $fY + ($fH - $iSz) / 2.0;
 
-        // ── 'Notarize' brand name to the right of the icon ──
-        $brandX = $iconX + $iconSize + 1.5;
+        $pdf->SetFillColor($gR, $gG, $gB);
+        $pdf->SetDrawColor($gR, $gG, $gB);
+        $pdf->Polygon([
+            $iX + $iSz * 0.50, $iY,                    // top centre
+            $iX + $iSz * 0.08, $iY + $iSz * 0.13,      // top-left
+            $iX,                $iY + $iSz * 0.51,      // mid-left
+            $iX + $iSz * 0.16, $iY + $iSz * 0.78,      // lower-left
+            $iX + $iSz * 0.50, $iY + $iSz,             // bottom point
+            $iX + $iSz * 0.84, $iY + $iSz * 0.78,      // lower-right
+            $iX + $iSz,        $iY + $iSz * 0.51,      // mid-right
+            $iX + $iSz * 0.92, $iY + $iSz * 0.13,      // top-right
+        ], 'F');
+
+        // ── 'Notarize' brand name to the right of the shield ──
+        $brandX = $iX + $iSz + 1.5;
         $brandW = $pageW - $brandX - 2.5;
         $pdf->SetFont('helvetica', 'B', 10.0);
         $pdf->SetTextColor($gR, $gG, $gB);
