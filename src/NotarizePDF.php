@@ -174,9 +174,9 @@ class NotarizePDF
         $pdf->SetFillColor($nR, $nG, $nB);
         $pdf->Rect(0, $fY + 0.4, $pageW, $fH - 0.4, 'F');
 
-        // Logo zone: rightmost 48mm
-        $logoZone = 48.0;
-        $textW    = $pageW - $logoZone - 4.0; // 3mm left margin + 1mm gap
+        // Logo zone: rightmost 50mm
+        $logoZone = 50.0;
+        $textW    = $pageW - $logoZone - 4.0;
 
         // Line 1 — certificate metadata (gold)
         $date  = date('Y-m-d H:i', strtotime($doc['notarized_at'])) . ' UTC';
@@ -201,32 +201,24 @@ class NotarizePDF
         $pdf->SetLineWidth(0.5);
         $pdf->Line($divX, $fY + 1.0, $divX, $fY + $fH - 1.0);
 
-        // ── Seal badge: gold outer ring → navy inner → gold 'N' monogram ──
-        $sealCX = $pageW - $logoZone + 6.0; // centre x of seal
-        $sealCY = $fY + ($fH / 2.0);        // centre y = middle of footer strip
-        $outerR = 3.8;
-        $innerR = 2.6;
+        // ── Shield-lock icon (matches website navbar logo) ──
+        $iconSize = 7.5;
+        $iconX    = $pageW - $logoZone + 2.0;
+        $iconY    = $fY + ($fH - $iconSize) / 2.0;
+        $shieldSvg = __DIR__ . '/logo-shield.svg';
+        if (is_file($shieldSvg)) {
+            try {
+                $pdf->imageSVG($shieldSvg, $iconX, $iconY, $iconSize, $iconSize);
+            } catch (\Throwable $e) { /* skip if SVG render fails */ }
+        }
 
-        $pdf->SetFillColor($gR, $gG, $gB);
-        $pdf->SetDrawColor($gR, $gG, $gB);
-        $pdf->SetLineWidth(0);
-        $pdf->Circle($sealCX, $sealCY, $outerR, 0, 360, 'F');
-
-        $pdf->SetFillColor($nR, $nG, $nB);
-        $pdf->Circle($sealCX, $sealCY, $innerR, 0, 360, 'F');
-
-        $pdf->SetFont('helvetica', 'B', 7.0);
-        $pdf->SetTextColor($gR, $gG, $gB);
-        $pdf->SetXY($sealCX - $outerR, $sealCY - $outerR);
-        $pdf->Cell($outerR * 2, $outerR * 2, 'N', 0, 0, 'C');
-
-        // ── Brand name: 'NOTARIZE' in bold gold to the right of the seal ──
-        $brandX = $sealCX + $outerR + 2.0;
+        // ── 'Notarize' brand name to the right of the icon ──
+        $brandX = $iconX + $iconSize + 1.5;
         $brandW = $pageW - $brandX - 2.5;
-        $pdf->SetFont('helvetica', 'B', 9.5);
+        $pdf->SetFont('helvetica', 'B', 10.0);
         $pdf->SetTextColor($gR, $gG, $gB);
         $pdf->SetXY($brandX, $fY + 2.0);
-        $pdf->Cell($brandW, $fH - 4.0, 'NOTARIZE', 0, 0, 'R');
+        $pdf->Cell($brandW, $fH - 4.0, 'Notarize', 0, 0, 'R');
     }
 
     // ── Certificate page ─────────────────────────────────────────────
@@ -328,7 +320,7 @@ class NotarizePDF
         }
 
         // QR code (right column)
-        $qX = 148; $qY = 57; $qSz = 55;
+        $qX = 150; $qY = 57; $qSz = 45;
         $pdf->SetTextColor($nR, $nG, $nB);
         $pdf->SetFont('helvetica', 'B', 8);
         $pdf->SetXY($qX, $qY);
