@@ -189,15 +189,20 @@ class Notarize
         return true;
     }
 
-    public function generateQrSvg(string $url): string
+    public function generateQrHtml(string $url): string
     {
-        $options = new QROptions([
-            'outputType' => QRCode::OUTPUT_MARKUP_SVG,
-            'eccLevel'   => QRCode::ECC_H,
-            'scale'      => 5,
-            'imageBase64' => false,
-        ]);
-        return (new QRCode($options))->render($url);
+        try {
+            $options = new QROptions([
+                'outputType'  => QRCode::OUTPUT_IMAGE_PNG,
+                'eccLevel'    => QRCode::ECC_H,
+                'scale'       => 6,
+                'imageBase64' => true,
+            ]);
+            $src = (new QRCode($options))->render($url);
+            return '<img src="' . $src . '" width="160" height="160" alt="QR Code" style="display:block">';
+        } catch (\Throwable $e) {
+            return '<div style="width:160px;height:160px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#888">QR unavailable</div>';
+        }
     }
 
     private function generateUuid(): string

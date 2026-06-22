@@ -22,7 +22,7 @@ if (!$doc) {
 }
 
 $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($doc['certificate_uuid']);
-$qrSvg     = $notarize->generateQrSvg($verifyUrl);
+$qrHtml    = $notarize->generateQrHtml($verifyUrl);
 $isNew     = !empty($_GET['new']);
 
 $pageTitle = $doc['original_filename'] . ' — Notarized';
@@ -104,7 +104,7 @@ require '../templates/header.php';
 
             <div class="col-md-4 text-center">
                 <div class="cert-section-label mb-2">Scan to Verify</div>
-                <div class="cert-qr"><?= $qrSvg ?></div>
+                <div class="cert-qr"><?= $qrHtml ?></div>
                 <p class="small text-muted mt-2 mb-0" style="word-break:break-all;font-size:.72rem">
                     <?= h($verifyUrl) ?>
                 </p>

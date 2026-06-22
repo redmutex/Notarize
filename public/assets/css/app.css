@@ -175,7 +175,7 @@ main { flex: 1; }
     padding: 8px;
     background: #fff;
 }
-.cert-qr svg { width: 160px; height: 160px; display: block; }
+.cert-qr img { width: 160px; height: 160px; display: block; }
 
 .certificate-footer {
     border-top: 2px solid var(--clr-gold-light);
