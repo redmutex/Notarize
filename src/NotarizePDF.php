@@ -201,23 +201,16 @@ class NotarizePDF
         $pdf->SetLineWidth(0.5);
         $pdf->Line($divX, $fY + 1.0, $divX, $fY + $fH - 1.0);
 
-        // ── Shield polygon drawn natively (avoids TCPDF SVG rendering quirks) ──
-        $iSz = 7.5;
-        $iX  = $pageW - $logoZone + 2.5;
-        $iY  = $fY + ($fH - $iSz) / 2.0;
-
-        $pdf->SetFillColor($gR, $gG, $gB);
-        $pdf->SetDrawColor($gR, $gG, $gB);
-        $pdf->Polygon([
-            $iX + $iSz * 0.50, $iY,                    // top centre
-            $iX + $iSz * 0.08, $iY + $iSz * 0.13,      // top-left
-            $iX,                $iY + $iSz * 0.51,      // mid-left
-            $iX + $iSz * 0.16, $iY + $iSz * 0.78,      // lower-left
-            $iX + $iSz * 0.50, $iY + $iSz,             // bottom point
-            $iX + $iSz * 0.84, $iY + $iSz * 0.78,      // lower-right
-            $iX + $iSz,        $iY + $iSz * 0.51,      // mid-right
-            $iX + $iSz * 0.92, $iY + $iSz * 0.13,      // top-right
-        ], 'F');
+        // ── Exact Bootstrap Icons shield-lock-fill PNG (pre-rendered at 256px) ──
+        $iSz     = 7.5;
+        $iX      = $pageW - $logoZone + 2.5;
+        $iY      = $fY + ($fH - $iSz) / 2.0;
+        $iconPng = __DIR__ . '/logo-shield.png';
+        if (is_file($iconPng)) {
+            try {
+                $pdf->Image($iconPng, $iX, $iY, $iSz, $iSz, 'PNG');
+            } catch (\Throwable $e) { /* skip */ }
+        }
 
         // ── 'Notarize' brand name to the right of the shield ──
         $brandX = $iX + $iSz + 1.5;
