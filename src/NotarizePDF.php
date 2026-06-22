@@ -20,7 +20,7 @@ class NotarizePDF
     public function generate(array $doc, string $verifyUrl, string $uploadDir): ?string
     {
         try {
-            $qrSvgPath = $this->saveQrSvg($verifyUrl);
+            $qrPngPath = $this->saveQrPng($verifyUrl);
             $srcFile   = $uploadDir . '/' . $doc['user_id'] . '/' . $doc['stored_filename'];
             $isPdf     = $doc['mime_type'] === 'application/pdf';
             $isImage   = str_starts_with($doc['mime_type'], 'image/');
@@ -36,13 +36,13 @@ class NotarizePDF
 
             // Certificate is always the last page, also gets footer
             $pdf->AddPage('P', 'A4');
-            $this->drawCertificate($pdf, $doc, $verifyUrl, $qrSvgPath);
+            $this->drawCertificate($pdf, $doc, $verifyUrl, $qrPngPath);
             $this->drawPageFooter($pdf, $doc, 210.0, 297.0);
 
             $outPath = $uploadDir . '/' . $doc['user_id'] . '/' . $doc['certificate_uuid'] . '_notarized.pdf';
             $pdf->Output($outPath, 'F');
 
-            if ($qrSvgPath) @unlink($qrSvgPath);
+            if ($qrPngPath) @unlink($qrPngPath);
             return $outPath;
         } catch (\Throwable $e) {
             return null;
@@ -64,18 +64,18 @@ class NotarizePDF
         return $pdf;
     }
 
-    private function saveQrSvg(string $url): ?string
+    private function saveQrPng(string $url): ?string
     {
         try {
             $opts = new QROptions([
-                'outputType'  => QRCode::OUTPUT_MARKUP_SVG,
+                'outputType'  => QRCode::OUTPUT_IMAGE_PNG,
                 'eccLevel'    => QRCode::ECC_H,
-                'scale'       => 6,
+                'scale'       => 10,
                 'imageBase64' => false,
             ]);
-            $svg  = (new QRCode($opts))->render($url);
-            $path = sys_get_temp_dir() . '/qrnotarize_' . uniqid() . '.svg';
-            file_put_contents($path, $svg);
+            $png  = (new QRCode($opts))->render($url);
+            $path = sys_get_temp_dir() . '/qrnotarize_' . uniqid() . '.png';
+            file_put_contents($path, $png);
             return $path;
         } catch (\Throwable $e) {
             return null;
@@ -226,12 +226,12 @@ class NotarizePDF
 
         // Certificate occupies y=5 to y=282, footer strip from y=286 to y=297
 
-        // Borders
+        // Borders — sized to content (content ends ~y=229, leaving 3mm padding inside)
         $pdf->SetDrawColor($gR, $gG, $gB);
         $pdf->SetLineWidth(2.0);
-        $pdf->Rect(5, 5, 200, 277, 'D');  // outer
+        $pdf->Rect(5, 5, 200, 230, 'D');  // outer → y=5 to y=235
         $pdf->SetLineWidth(0.5);
-        $pdf->Rect(8, 8, 194, 271, 'D');  // inner
+        $pdf->Rect(8, 8, 194, 224, 'D');  // inner → y=8 to y=232
 
         // Header band (navy)
         $pdf->SetFillColor($nR, $nG, $nB);
@@ -320,13 +320,14 @@ class NotarizePDF
         $pdf->SetFont('helvetica', 'B', 8);
         $pdf->SetXY($qX, $qY);
         $pdf->Cell($qSz, 7, 'Scan to Verify', 0, 0, 'C');
+        $pdf->SetFillColor(255, 255, 255);
         $pdf->SetDrawColor($gR, $gG, $gB);
         $pdf->SetLineWidth(0.8);
-        $pdf->Rect($qX, $qY + 7, $qSz, $qSz, 'D');
+        $pdf->Rect($qX, $qY + 7, $qSz, $qSz, 'DF');
         if ($qrPath && is_file($qrPath)) {
             try {
-                $pdf->imageSVG($qrPath, $qX + 2, $qY + 9, $qSz - 4, $qSz - 4);
-            } catch (\Throwable $e) { /* SVG embed failed */ }
+                $pdf->Image($qrPath, $qX + 2, $qY + 9, $qSz - 4, $qSz - 4);
+            } catch (\Throwable $e) { /* PNG embed failed */ }
         }
         $pdf->SetTextColor(100, 100, 100);
         $pdf->SetFont('courier', '', 5);

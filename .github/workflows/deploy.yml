@@ -49,7 +49,7 @@ jobs:
           target: /var/www/notarize
           strip_components: 0
 
-      - name: Run migrations
+      - name: Run migrations and clear PDF cache
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SSH_HOST }}
@@ -59,4 +59,5 @@ jobs:
             set -euo pipefail
             cd /var/www/notarize
             php migrations/migrate.php
+            find /var/www/notarize/uploads -name "*_notarized.pdf" -delete 2>/dev/null || true
             echo "Deploy complete: $(date -u)"
