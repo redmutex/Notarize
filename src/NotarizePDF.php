@@ -174,6 +174,10 @@ class NotarizePDF
         $pdf->SetFillColor($nR, $nG, $nB);
         $pdf->Rect(0, $fY + 0.4, $pageW, $fH - 0.4, 'F');
 
+        // Logo zone: rightmost 44mm, separated by a thin vertical gold line
+        $logoZone = 44.0;
+        $textW    = $pageW - $logoZone - 4.0; // 3mm left margin + 1mm gap
+
         // Line 1 — certificate metadata (gold)
         $date  = date('Y-m-d H:i', strtotime($doc['notarized_at'])) . ' UTC';
         $line1 = 'NOTARIZED  |  notarize.onrite.cloud  |  Cert: ' . $doc['certificate_uuid'] . '  |  ' . $date;
@@ -181,7 +185,7 @@ class NotarizePDF
         $pdf->SetFont('helvetica', 'B', 5.2);
         $pdf->SetTextColor($gR, $gG, $gB);
         $pdf->SetXY(3.0, $fY + 1.5);
-        $pdf->Cell($pageW - 6.0, 3.5, $line1, 0, 0, 'L');
+        $pdf->Cell($textW, 3.5, $line1, 0, 0, 'L');
 
         // Line 2 — truncated RSA-4096 signature (white monospace)
         $line2 = 'RSA-4096/SHA-256 Sig:  ' . substr($doc['signature'], 0, 100) . '...';
@@ -189,7 +193,27 @@ class NotarizePDF
         $pdf->SetFont('courier', '', 4.8);
         $pdf->SetTextColor($wR, $wG, $wB);
         $pdf->SetXY(3.0, $fY + 6.0);
-        $pdf->Cell($pageW - 6.0, 3.5, $line2, 0, 0, 'L');
+        $pdf->Cell($textW, 3.5, $line2, 0, 0, 'L');
+
+        // Vertical gold divider
+        $divX = $pageW - $logoZone - 0.5;
+        $pdf->SetDrawColor($gR, $gG, $gB);
+        $pdf->SetLineWidth(0.35);
+        $pdf->Line($divX, $fY + 1.5, $divX, $fY + $fH - 1.5);
+
+        // Logo: brand name (gold, bold)
+        $lX = $pageW - $logoZone + 2.0;
+        $lW = $logoZone - 5.0; // 3mm right margin
+        $pdf->SetFont('helvetica', 'B', 7.5);
+        $pdf->SetTextColor($gR, $gG, $gB);
+        $pdf->SetXY($lX, $fY + 1.8);
+        $pdf->Cell($lW, 4.5, 'NOTARIZE', 0, 0, 'R');
+
+        // Logo: domain (white, small)
+        $pdf->SetFont('helvetica', '', 4.2);
+        $pdf->SetTextColor($wR, $wG, $wB);
+        $pdf->SetXY($lX, $fY + 6.5);
+        $pdf->Cell($lW, 3.0, 'notarize.onrite.cloud', 0, 0, 'R');
     }
 
     // ── Certificate page ─────────────────────────────────────────────
