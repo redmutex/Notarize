@@ -174,8 +174,8 @@ class NotarizePDF
         $pdf->SetFillColor($nR, $nG, $nB);
         $pdf->Rect(0, $fY + 0.4, $pageW, $fH - 0.4, 'F');
 
-        // Logo zone: rightmost 44mm, separated by a thin vertical gold line
-        $logoZone = 44.0;
+        // Logo zone: rightmost 48mm
+        $logoZone = 48.0;
         $textW    = $pageW - $logoZone - 4.0; // 3mm left margin + 1mm gap
 
         // Line 1 — certificate metadata (gold)
@@ -198,22 +198,35 @@ class NotarizePDF
         // Vertical gold divider
         $divX = $pageW - $logoZone - 0.5;
         $pdf->SetDrawColor($gR, $gG, $gB);
-        $pdf->SetLineWidth(0.35);
-        $pdf->Line($divX, $fY + 1.5, $divX, $fY + $fH - 1.5);
+        $pdf->SetLineWidth(0.5);
+        $pdf->Line($divX, $fY + 1.0, $divX, $fY + $fH - 1.0);
 
-        // Logo: brand name (gold, bold)
-        $lX = $pageW - $logoZone + 2.0;
-        $lW = $logoZone - 5.0; // 3mm right margin
-        $pdf->SetFont('helvetica', 'B', 7.5);
+        // ── Seal badge: gold outer ring → navy inner → gold 'N' monogram ──
+        $sealCX = $pageW - $logoZone + 6.0; // centre x of seal
+        $sealCY = $fY + ($fH / 2.0);        // centre y = middle of footer strip
+        $outerR = 3.8;
+        $innerR = 2.6;
+
+        $pdf->SetFillColor($gR, $gG, $gB);
+        $pdf->SetDrawColor($gR, $gG, $gB);
+        $pdf->SetLineWidth(0);
+        $pdf->Circle($sealCX, $sealCY, $outerR, 0, 360, 'F');
+
+        $pdf->SetFillColor($nR, $nG, $nB);
+        $pdf->Circle($sealCX, $sealCY, $innerR, 0, 360, 'F');
+
+        $pdf->SetFont('helvetica', 'B', 7.0);
         $pdf->SetTextColor($gR, $gG, $gB);
-        $pdf->SetXY($lX, $fY + 1.8);
-        $pdf->Cell($lW, 4.5, 'NOTARIZE', 0, 0, 'R');
+        $pdf->SetXY($sealCX - $outerR, $sealCY - $outerR);
+        $pdf->Cell($outerR * 2, $outerR * 2, 'N', 0, 0, 'C');
 
-        // Logo: domain (white, small)
-        $pdf->SetFont('helvetica', '', 4.2);
-        $pdf->SetTextColor($wR, $wG, $wB);
-        $pdf->SetXY($lX, $fY + 6.5);
-        $pdf->Cell($lW, 3.0, 'notarize.onrite.cloud', 0, 0, 'R');
+        // ── Brand name: 'NOTARIZE' in bold gold to the right of the seal ──
+        $brandX = $sealCX + $outerR + 2.0;
+        $brandW = $pageW - $brandX - 2.5;
+        $pdf->SetFont('helvetica', 'B', 9.5);
+        $pdf->SetTextColor($gR, $gG, $gB);
+        $pdf->SetXY($brandX, $fY + 2.0);
+        $pdf->Cell($brandW, $fH - 4.0, 'NOTARIZE', 0, 0, 'R');
     }
 
     // ── Certificate page ─────────────────────────────────────────────
