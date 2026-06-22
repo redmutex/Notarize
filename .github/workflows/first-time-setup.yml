@@ -10,54 +10,53 @@ jobs:
     environment: notarize
 
     steps:
-      - name: Run server setup as root
+      - name: Run server setup (dj → sudo)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SSH_HOST }}
-          username: root
-          password: ${{ secrets.ROOT_PASSWORD }}
+          username: dj
+          password: ${{ secrets.DJ_PASSWORD }}
+          envs: NOTARIZE_DB_PASS,NOTARIZE_MYSQL_ROOT
           script: |
             set -euo pipefail
 
             APP_DIR=/var/www/notarize
-            UPLOAD_DIR=$APP_DIR/uploads
             KEY_DIR=/etc/notarize/keys
             DOMAIN=notarize.onrite.cloud
-            PHP_SOCK=/run/php/php8.3-fpm.sock
 
             # ── Directories ────────────────────────────────────────
-            mkdir -p "$APP_DIR" "$UPLOAD_DIR" "$KEY_DIR"
-            chown -R robot:www-data "$APP_DIR" || chown -R robot "$APP_DIR"
-            chmod -R 755 "$APP_DIR"
-            chmod -R 775 "$UPLOAD_DIR"
-            echo "[1/6] Directories ready"
+            sudo mkdir -p "$APP_DIR/uploads" "$APP_DIR/public" "$KEY_DIR"
+            sudo chown -R robot:www-data "$APP_DIR" 2>/dev/null || sudo chown -R robot "$APP_DIR"
+            sudo chmod -R 755 "$APP_DIR"
+            sudo chmod -R 775 "$APP_DIR/uploads"
+            echo "[1/6] Directories OK"
 
             # ── RSA signing keys ───────────────────────────────────
             if [ ! -f "$KEY_DIR/private.pem" ]; then
-              openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
-                   -out "$KEY_DIR/private.pem" 2>&1
-              openssl rsa -pubout -in "$KEY_DIR/private.pem" \
-                   -out "$KEY_DIR/public.pem" 2>&1
-              chmod 640 "$KEY_DIR/private.pem"
-              chmod 644 "$KEY_DIR/public.pem"
-              chown www-data:www-data "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
-              echo "[2/6] RSA-4096 key pair generated"
+              sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
+                -out "$KEY_DIR/private.pem"
+              sudo openssl rsa -pubout -in "$KEY_DIR/private.pem" \
+                -out "$KEY_DIR/public.pem"
+              sudo chmod 640 "$KEY_DIR/private.pem"
+              sudo chmod 644 "$KEY_DIR/public.pem"
+              sudo chown www-data:www-data "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
+              echo "[2/6] RSA-4096 keys generated"
             else
               echo "[2/6] RSA keys already exist"
             fi
 
-            # ── MySQL DB + user ────────────────────────────────────
-            MYSQL_PWD='${{ secrets.MYSQL_ROOT_PASSWORD }}' mysql -u root <<SQL
-            CREATE DATABASE IF NOT EXISTS notarize_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-            CREATE USER IF NOT EXISTS 'notarize_app'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';
-            GRANT ALL PRIVILEGES ON notarize_app.* TO 'notarize_app'@'localhost';
-            FLUSH PRIVILEGES;
-            SQL
-            echo "[3/6] MySQL database and user ready"
+            # ── MySQL ──────────────────────────────────────────────
+            sudo MYSQL_PWD="$NOTARIZE_MYSQL_ROOT" mysql -u root \
+              -e "CREATE DATABASE IF NOT EXISTS notarize_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            sudo MYSQL_PWD="$NOTARIZE_MYSQL_ROOT" mysql -u root \
+              -e "CREATE USER IF NOT EXISTS 'notarize_app'@'localhost' IDENTIFIED BY '$NOTARIZE_DB_PASS';"
+            sudo MYSQL_PWD="$NOTARIZE_MYSQL_ROOT" mysql -u root \
+              -e "GRANT ALL PRIVILEGES ON notarize_app.* TO 'notarize_app'@'localhost'; FLUSH PRIVILEGES;"
+            echo "[3/6] MySQL DB and user ready"
 
             # ── nginx vhost ────────────────────────────────────────
             VHOST=/etc/nginx/sites-available/$DOMAIN.conf
-            cat > "$VHOST" << 'NGINXEOF'
+            sudo tee "$VHOST" > /dev/null << 'NGINXEOF'
             server {
                 listen 80;
                 listen [::]:80;
@@ -85,22 +84,23 @@ jobs:
                 location ~ /\.(env|git) { deny all; return 404; }
             }
             NGINXEOF
-            ln -sf "$VHOST" /etc/nginx/sites-enabled/$DOMAIN.conf
+            sudo ln -sf "$VHOST" /etc/nginx/sites-enabled/$DOMAIN.conf
             echo "[4/6] nginx vhost written"
 
             # ── SSL certificate ────────────────────────────────────
-            certbot certonly --nginx -d "$DOMAIN" \
-                --non-interactive --agree-tos -m danial@redmutex.com 2>&1
-            nginx -t && systemctl reload nginx
+            sudo certbot certonly --nginx -d "$DOMAIN" \
+              --non-interactive --agree-tos -m danial@redmutex.com
+            sudo nginx -t && sudo systemctl reload nginx
             echo "[5/6] SSL certificate issued"
 
-            # ── robot user permissions ─────────────────────────────
-            usermod -aG www-data robot 2>/dev/null || true
-            # Let robot write to app dir for deploys
-            chown -R robot:www-data "$APP_DIR"
-            chmod -R g+w "$APP_DIR"
-            echo "[6/6] Permissions configured"
+            # ── robot group + permissions ──────────────────────────
+            sudo usermod -aG www-data robot 2>/dev/null || true
+            sudo chown -R robot:www-data "$APP_DIR"
+            sudo chmod -R g+w "$APP_DIR"
+            echo "[6/6] Permissions set"
 
             echo ""
-            echo "=== Setup complete! ==="
-            echo "Now trigger the Deploy workflow to push the application."
+            echo "=== Server setup complete. Run the Deploy workflow next. ==="
+        env:
+          NOTARIZE_DB_PASS: ${{ secrets.DB_PASSWORD }}
+          NOTARIZE_MYSQL_ROOT: ${{ secrets.MYSQL_ROOT_PASSWORD }}
