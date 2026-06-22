@@ -23,7 +23,7 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      - name: Write .env for deploy
+      - name: Write .env
         run: |
           cat > .env <<EOF
           APP_NAME=Notarize
@@ -39,26 +39,110 @@ jobs:
           MAX_UPLOAD_MB=10
           EOF
 
+      - name: Prepare server directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            mkdir -p /var/www/notarize/uploads
+            mkdir -p /var/www/notarize/public/assets
+
       - name: Sync files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.SSH_HOST }}
           username: ${{ vars.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: ".,!.git"
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: ".,!.git,!.env.example,!scripts"
           target: /var/www/notarize
           strip_components: 0
 
-      - name: Run migrations & reload
+      - name: First-time setup & migrations
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SSH_HOST }}
           username: ${{ vars.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -euo pipefail
             cd /var/www/notarize
-            chmod -R o-rwx .
-            chmod 750 uploads/ 2>/dev/null || true
+
+            # ── First-time: generate RSA signing keys ──────────────
+            KEY_DIR=/etc/notarize/keys
+            if [ ! -f "$KEY_DIR/private.pem" ]; then
+              sudo mkdir -p "$KEY_DIR"
+              sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 \
+                   -out "$KEY_DIR/private.pem" 2>&1
+              sudo openssl rsa -pubout -in "$KEY_DIR/private.pem" \
+                   -out "$KEY_DIR/public.pem" 2>&1
+              sudo chmod 640 "$KEY_DIR/private.pem"
+              sudo chmod 644 "$KEY_DIR/public.pem"
+              sudo chown www-data:www-data "$KEY_DIR/private.pem" "$KEY_DIR/public.pem"
+              echo "[keys] RSA-4096 key pair generated"
+            fi
+
+            # ── First-time: MySQL DB + user ────────────────────────
+            DB_EXISTS=$(sudo mysql -u root \
+              -p'${{ secrets.MYSQL_ROOT_PASSWORD }}' \
+              -sse "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='notarize_app';" 2>/dev/null || echo "")
+            if [ -z "$DB_EXISTS" ]; then
+              sudo mysql -u root -p'${{ secrets.MYSQL_ROOT_PASSWORD }}' <<SQL
+            CREATE DATABASE IF NOT EXISTS notarize_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            CREATE USER IF NOT EXISTS 'notarize_app'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';
+            GRANT ALL PRIVILEGES ON notarize_app.* TO 'notarize_app'@'localhost';
+            FLUSH PRIVILEGES;
+            SQL
+              echo "[db] notarize_app created"
+            fi
+
+            # ── First-time: nginx vhost ────────────────────────────
+            VHOST=/etc/nginx/sites-available/notarize.onrite.cloud.conf
+            if [ ! -f "$VHOST" ]; then
+              sudo tee "$VHOST" > /dev/null << 'NGINXEOF'
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name notarize.onrite.cloud;
+                return 301 https://$host$request_uri;
+            }
+            server {
+                listen 443 ssl;
+                listen [::]:443 ssl;
+                server_name notarize.onrite.cloud;
+                root  /var/www/notarize/public;
+                index index.php;
+                ssl_certificate     /etc/letsencrypt/live/notarize.onrite.cloud/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/notarize.onrite.cloud/privkey.pem;
+                include             /etc/letsencrypt/options-ssl-nginx.conf;
+                ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+                client_max_body_size 12M;
+                location / { try_files $uri $uri/ =404; }
+                location ~ \.php$ {
+                    fastcgi_pass  unix:/run/php/php8.3-fpm.sock;
+                    fastcgi_index index.php;
+                    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                    include       fastcgi_params;
+                }
+                location ~ /\.(env|git) { deny all; return 404; }
+            }
+            NGINXEOF
+              sudo ln -sf "$VHOST" /etc/nginx/sites-enabled/notarize.onrite.cloud.conf
+              sudo certbot certonly --nginx -d notarize.onrite.cloud \
+                   --non-interactive --agree-tos -m danial@redmutex.com 2>&1 || echo "[ssl] certbot skipped"
+              sudo nginx -t && sudo systemctl reload nginx
+              echo "[nginx] vhost created"
+            fi
+
+            # ── Permissions ────────────────────────────────────────
+            sudo chown -R www-data:www-data /var/www/notarize
+            sudo chmod -R 755 /var/www/notarize
+            sudo chmod -R 775 /var/www/notarize/uploads
+            # Keep robot able to write for next deploy
+            sudo usermod -aG www-data robot 2>/dev/null || true
+
+            # ── Run DB migrations ──────────────────────────────────
             php migrations/migrate.php
-            echo "Deploy finished: $(date -u)"
+
+            echo "Deploy complete: $(date -u)"
