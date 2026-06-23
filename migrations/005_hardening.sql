@@ -3,10 +3,11 @@ ALTER TABLE documents
     MODIFY COLUMN status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending';
 
 -- Indexes for admin queries that filter/sort by status and submitted_at
--- CREATE INDEX IF NOT EXISTS is valid MySQL 8.0+ syntax
-CREATE INDEX IF NOT EXISTS idx_doc_status      ON documents (status);
-CREATE INDEX IF NOT EXISTS idx_doc_user_status ON documents (user_id, status);
-CREATE INDEX IF NOT EXISTS idx_doc_submitted   ON documents (submitted_at);
+-- migrate.php runs each file exactly once, so IF NOT EXISTS is not needed here
+ALTER TABLE documents
+    ADD INDEX idx_doc_status      (status),
+    ADD INDEX idx_doc_user_status (user_id, status),
+    ADD INDEX idx_doc_submitted   (submitted_at);
 
 -- Webhook event log for replay-attack prevention
 CREATE TABLE IF NOT EXISTS webhook_events (
