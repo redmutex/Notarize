@@ -47,6 +47,7 @@ require '../../templates/header.php';
                         <th>Sub. Active</th>
                         <th>Total Docs</th>
                         <th>Joined</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,6 +94,12 @@ require '../../templates/header.php';
                     </td>
                     <td class="small"><?= (int)$u['total_docs'] ?></td>
                     <td class="text-muted small"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
+                    <td>
+                        <a href="/admin/user.php?id=<?= (int)$u['id'] ?>"
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-person-lines-fill me-1"></i>View
+                        </a>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>

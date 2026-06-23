@@ -29,20 +29,25 @@ if (!in_array($action, ['approve', 'reject'], true) || !$docId) {
     redirect('/admin/pending.php');
 }
 
+// Validate and sanitise the redirect destination (must be an internal path)
+$rawRedirect  = $_POST['redirect'] ?? '';
+$backRedirect = (preg_match('/^\/admin\/[a-zA-Z0-9_\-\.]+\.php(\?[^"\'<>]*)?$/', $rawRedirect))
+    ? $rawRedirect
+    : '/admin/pending.php';
+
 $notarize = new Notarize();
 
 if ($action === 'approve') {
     $result = $notarize->approve($docId, $authUser['id']);
     if (isset($result['error'])) {
-        // Redirect back with error
-        redirect('/admin/pending.php?error=' . urlencode($result['error']));
+        redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'error=' . urlencode($result['error']));
     }
-    redirect('/admin/pending.php?approved=1');
+    redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'approved=1');
 } else {
     $notes = trim($_POST['notes'] ?? '');
     if (!$notes) {
-        redirect('/admin/pending.php?error=' . urlencode('Rejection reason is required.'));
+        redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'error=' . urlencode('Rejection reason is required.'));
     }
     $notarize->reject($docId, $authUser['id'], $notes);
-    redirect('/admin/pending.php?rejected=1');
+    redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'rejected=1');
 }

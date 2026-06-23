@@ -34,6 +34,8 @@ require '../../templates/header.php';
         <div class="d-flex gap-2">
             <a href="/admin/users.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-people me-1"></i>Users</a>
             <a href="/admin/documents.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-files me-1"></i>Documents</a>
+            <a href="/admin/transactions.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-receipt me-1"></i>Transactions</a>
+            <a href="/admin/pending.php" class="btn btn-warning btn-sm"><i class="bi bi-hourglass-split me-1"></i>Pending<?= $__pendingCount > 0 ? ' (' . $__pendingCount . ')' : '' ?></a>
         </div>
     </div>
 

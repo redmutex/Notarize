@@ -181,21 +181,51 @@ require '../templates/header.php';
             <table class="table table-hover mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
+                        <th>Invoice #</th>
                         <th>Date</th>
-                        <th>Plan</th>
+                        <th>Description</th>
                         <th>Amount</th>
                         <th>Status</th>
-                        <th>Transaction</th>
+                        <th class="text-end">Invoice</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($history as $row): ?>
+                    <?php
+                    $pInfo = Billing::PLANS[$row['plan_type']] ?? ['name' => strtoupper($row['plan_type'])];
+                    if ($row['status'] === 'subscription_activated') {
+                        $rowDesc = $pInfo['name'] . ' subscription activated';
+                    } elseif ($row['status'] === 'completed' && $row['plan_type'] === 'payg') {
+                        $rowDesc = 'Pay As You Go — 1 document';
+                    } else {
+                        $rowDesc = $pInfo['name'] . ' plan payment';
+                    }
+                    ?>
                     <tr>
-                        <td class="text-muted small"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
-                        <td><span class="badge bg-secondary"><?= h(strtoupper($row['plan_type'])) ?></span></td>
+                        <td class="font-monospace small text-muted">
+                            INV-<?= str_pad((string)$row['id'], 6, '0', STR_PAD_LEFT) ?>
+                        </td>
+                        <td class="text-muted small text-nowrap">
+                            <?= h(date('M j, Y', strtotime($row['created_at']))) ?>
+                        </td>
+                        <td class="small"><?= h($rowDesc) ?></td>
                         <td class="fw-semibold">$<?= h(number_format((float)$row['amount'], 2)) ?></td>
-                        <td><span class="badge bg-success"><?= h($row['status']) ?></span></td>
-                        <td class="font-monospace small text-muted"><?= h(substr($row['paypal_txn_id'] ?? '', 0, 20)) ?>…</td>
+                        <td>
+                            <?php if ($row['status'] === 'completed'): ?>
+                                <span class="badge bg-success">Paid</span>
+                            <?php elseif ($row['status'] === 'subscription_activated'): ?>
+                                <span class="badge bg-primary">Subscription</span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary"><?= h($row['status']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end">
+                            <a href="/billing/invoice.php?id=<?= (int)$row['id'] ?>"
+                               class="btn btn-sm btn-outline-secondary" target="_blank"
+                               title="Download invoice PDF">
+                                <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+                            </a>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

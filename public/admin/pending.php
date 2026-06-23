@@ -20,6 +20,9 @@ if (!(int)$stmt->fetchColumn()) {
 $notarize = new Notarize();
 $pending  = $notarize->getPendingDocuments();
 
+$flashOk  = $_GET['approved'] ?? $_GET['rejected'] ?? null;
+$flashErr = $_GET['error'] ?? null;
+
 $pageTitle = 'Admin — Pending Reviews';
 require '../../templates/header.php';
 ?>
@@ -37,6 +40,19 @@ require '../../templates/header.php';
             <i class="bi bi-arrow-left me-1"></i>Dashboard
         </a>
     </div>
+
+    <?php if ($flashOk !== null): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?= isset($_GET['approved']) ? '<i class="bi bi-check-circle me-2"></i>Document approved and notarized.' : '<i class="bi bi-x-circle me-2"></i>Document rejected and user notified.' ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
+    <?php if ($flashErr): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle me-2"></i><?= h($flashErr) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
 
     <?php if (empty($pending)): ?>
         <div class="card border-0 shadow-sm text-center py-5">

@@ -388,12 +388,89 @@ class Billing
         $offset = ($page - 1) * $perPage;
         $total  = (int)$this->db->query("SELECT COUNT(*) FROM documents")->fetchColumn();
         $stmt   = $this->db->prepare(
-            "SELECT d.id, d.original_filename, d.mime_type, d.file_size,
-                    d.notarized_at, d.certificate_uuid,
+            "SELECT d.id, d.user_id, d.original_filename, d.mime_type, d.file_size,
+                    d.status, d.submitted_at, d.notarized_at, d.certificate_uuid,
+                    d.review_notes, d.reviewed_at,
                     u.name AS user_name, u.email AS user_email
              FROM documents d
              JOIN users u ON d.user_id = u.id
-             ORDER BY d.notarized_at DESC
+             ORDER BY d.submitted_at DESC
+             LIMIT ? OFFSET ?"
+        );
+        $stmt->execute([$perPage, $offset]);
+        return [
+            'rows'  => $stmt->fetchAll(),
+            'total' => $total,
+            'pages' => max(1, (int)ceil($total / $perPage)),
+            'page'  => $page,
+        ];
+    }
+
+    // ── Per-user admin detail ────────────────────────────────────────
+
+    public function getUserDetail(int $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT u.*, COUNT(d.id) AS total_docs,
+                    SUM(CASE WHEN d.status = 'approved' THEN 1 ELSE 0 END)  AS approved_docs,
+                    SUM(CASE WHEN d.status = 'pending'  THEN 1 ELSE 0 END)  AS pending_docs,
+                    SUM(CASE WHEN d.status = 'rejected' THEN 1 ELSE 0 END)  AS rejected_docs
+             FROM users u
+             LEFT JOIN documents d ON d.user_id = u.id
+             WHERE u.id = ?
+             GROUP BY u.id"
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getUserDocumentsAdmin(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT d.*, u.name AS user_name, u.email AS user_email
+             FROM documents d
+             JOIN users u ON d.user_id = u.id
+             WHERE d.user_id = ?
+             ORDER BY d.submitted_at DESC"
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getUserTransactions(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT bh.*, u.name AS user_name, u.email AS user_email
+             FROM billing_history bh
+             JOIN users u ON bh.user_id = u.id
+             WHERE bh.user_id = ?
+             ORDER BY bh.created_at DESC"
+        );
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getTransaction(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT bh.*, u.name AS user_name, u.email AS user_email
+             FROM billing_history bh
+             JOIN users u ON bh.user_id = u.id
+             WHERE bh.id = ?"
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getAllTransactions(int $page = 1, int $perPage = 30): array
+    {
+        $offset = ($page - 1) * $perPage;
+        $total  = (int)$this->db->query("SELECT COUNT(*) FROM billing_history")->fetchColumn();
+        $stmt   = $this->db->prepare(
+            "SELECT bh.*, u.name AS user_name, u.email AS user_email
+             FROM billing_history bh
+             JOIN users u ON bh.user_id = u.id
+             ORDER BY bh.created_at DESC
              LIMIT ? OFFSET ?"
         );
         $stmt->execute([$perPage, $offset]);

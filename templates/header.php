@@ -50,7 +50,7 @@
                     } catch (\Throwable $__e) {}
                 ?>
                 <li class="nav-item">
-                    <a class="nav-link text-warning" href="/admin/pending.php">
+                    <a class="nav-link text-warning" href="/admin/">
                         <i class="bi bi-speedometer2 me-1"></i>Admin
                         <?php if ($__pendingCount > 0): ?>
                             <span class="badge bg-danger ms-1" style="font-size:.65rem;vertical-align:middle"><?= $__pendingCount ?></span>
