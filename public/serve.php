@@ -15,7 +15,11 @@ $isAdmin  = $authUser && !empty($_SESSION['user_is_admin']);
 
 $doc = null;
 
-if (isset($_GET['id']) && $authUser) {
+if (isset($_GET['uuid']) && $fileType === 'notarized') {
+    // Public path: verify.php embeds the notarized PDF by UUID — no login required.
+    // getDocumentByUuid() only returns status='approved' documents.
+    $doc = $notarize->getDocumentByUuid(trim($_GET['uuid']));
+} elseif (isset($_GET['id']) && $authUser) {
     $docId = (int)$_GET['id'];
     if ($isAdmin) {
         $doc = $notarize->getDocumentForAdmin($docId);
