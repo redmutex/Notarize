@@ -73,6 +73,4 @@ jobs:
             chmod 640 .env
             # Run database migrations
             php migrations/migrate.php
-            # Remove stale notarized PDFs so they are regenerated on next request
-            find /var/www/notarize/uploads -name "*_notarized.pdf" -delete 2>/dev/null || true
             echo "Deploy complete: $(date -u)"
