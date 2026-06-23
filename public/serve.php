@@ -10,14 +10,19 @@ $auth     = new Auth();
 $authUser = $auth->user();
 $notarize = new Notarize();
 
-$doc      = null;
-$fileType = trim($_GET['type'] ?? 'notarized'); // 'notarized' | 'original'
+// type: 'notarized' | 'original' | 'photo_id' | 'selfie'
+$fileType = trim($_GET['type'] ?? 'notarized');
+$isAdmin  = $authUser && !empty($_SESSION['user_is_admin']);
 
-if (isset($_GET['uuid'])) {
-    $uuid = preg_replace('/[^a-f0-9\-]/', '', $_GET['uuid']);
-    $doc  = $notarize->getDocumentByUuid($uuid);
-} elseif (isset($_GET['id']) && $authUser) {
-    $doc = $notarize->getDocument((int)$_GET['id'], $authUser['id']);
+$doc = null;
+
+if (isset($_GET['id']) && $authUser) {
+    $docId = (int)$_GET['id'];
+    if ($isAdmin) {
+        $doc = $notarize->getDocumentForAdmin($docId);
+    } else {
+        $doc = $notarize->getDocument($docId, $authUser['id']);
+    }
 }
 
 if (!$doc) {
@@ -25,9 +30,15 @@ if (!$doc) {
     exit('Not found.');
 }
 
-// Original files are private — only the owner may access them
-if ($fileType === 'original') {
-    if (!$authUser || (int)$authUser['id'] !== (int)$doc['user_id']) {
+// Access control
+if (in_array($fileType, ['original', 'photo_id', 'selfie'], true)) {
+    // Only owner or admin may access these
+    if (!$authUser || ((int)$authUser['id'] !== (int)$doc['user_id'] && !$isAdmin)) {
+        http_response_code(403);
+        exit('Forbidden.');
+    }
+    // photo_id and selfie require admin
+    if (in_array($fileType, ['photo_id', 'selfie'], true) && !$isAdmin) {
         http_response_code(403);
         exit('Forbidden.');
     }
@@ -35,29 +46,45 @@ if ($fileType === 'original') {
 
 $uploadDir = UPLOAD_DIR;
 $userId    = (int)$doc['user_id'];
-$uuid      = $doc['certificate_uuid'];
+$base      = $uploadDir . '/' . $userId . '/';
 
-if ($fileType === 'original') {
-    $filePath    = $uploadDir . '/' . $userId . '/' . $doc['stored_filename'];
-    $contentType = $doc['mime_type'];
-    $dlName      = $doc['original_filename'];
-} else {
-    $filePath    = $uploadDir . '/' . $userId . '/' . $uuid . '_notarized.pdf';
-    $contentType = 'application/pdf';
-    $dlName      = 'notarized_' . pathinfo($doc['original_filename'], PATHINFO_FILENAME) . '.pdf';
+switch ($fileType) {
+    case 'original':
+        $filePath    = $base . $doc['stored_filename'];
+        $contentType = $doc['mime_type'];
+        $dlName      = $doc['original_filename'];
+        break;
 
-    // Lazy-generate the notarized PDF if it doesn't exist yet
-    if (!is_file($filePath)) {
-        try {
-            $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($uuid);
-            (new NotarizePDF())->generate($doc, $verifyUrl, $uploadDir);
-        } catch (\Throwable $e) {
-            // generation failed — fall through to 404
+    case 'photo_id':
+        $filePath    = $base . ($doc['photo_id_filename'] ?? '');
+        $contentType = mime_content_type($filePath) ?: 'image/jpeg';
+        $dlName      = 'photo_id_' . $doc['id'] . '.' . pathinfo((string)$doc['photo_id_filename'], PATHINFO_EXTENSION);
+        break;
+
+    case 'selfie':
+        $filePath    = $base . ($doc['selfie_filename'] ?? '');
+        $contentType = mime_content_type($filePath) ?: 'image/jpeg';
+        $dlName      = 'selfie_' . $doc['id'] . '.' . pathinfo((string)$doc['selfie_filename'], PATHINFO_EXTENSION);
+        break;
+
+    default: // 'notarized'
+        $uuid     = $doc['certificate_uuid'] ?? '';
+        $filePath = $base . $uuid . '_notarized.pdf';
+        $contentType = 'application/pdf';
+        $dlName      = 'notarized_' . pathinfo($doc['original_filename'], PATHINFO_FILENAME) . '.pdf';
+
+        if (!is_file($filePath) && $uuid && $doc['status'] === 'approved') {
+            try {
+                $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($uuid);
+                (new NotarizePDF())->generate($doc, $verifyUrl, $uploadDir);
+            } catch (\Throwable $e) {
+                // fall through to 404
+            }
         }
-    }
+        break;
 }
 
-// Prevent path traversal: both paths must be inside UPLOAD_DIR
+// Path traversal guard
 $realUpload = realpath($uploadDir);
 $realFile   = is_file($filePath) ? realpath($filePath) : false;
 

@@ -38,6 +38,10 @@ require '../../templates/header.php';
     </div>
 
     <!-- Stats cards -->
+    <?php
+    $__notarize    = new App\Notarize();
+    $__pendingCount = $__notarize->getPendingCount();
+    ?>
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
@@ -58,13 +62,15 @@ require '../../templates/header.php';
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
+            <a href="/admin/pending.php" class="card border-0 shadow-sm h-100 text-decoration-none <?= $__pendingCount > 0 ? 'border-warning border' : '' ?>">
                 <div class="card-body">
-                    <div class="text-muted small mb-1">Total Revenue</div>
-                    <div class="fs-2 fw-bold">$<?= number_format($stats['total_revenue'], 2) ?></div>
-                    <div class="text-muted small">All time</div>
+                    <div class="text-muted small mb-1">Pending Review</div>
+                    <div class="fs-2 fw-bold <?= $__pendingCount > 0 ? 'text-warning' : 'text-muted' ?>"><?= $__pendingCount ?></div>
+                    <div class="small <?= $__pendingCount > 0 ? 'text-warning' : 'text-muted' ?>">
+                        <?= $__pendingCount > 0 ? '<i class="bi bi-exclamation-triangle me-1"></i>Requires action' : 'All clear' ?>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
@@ -143,7 +149,7 @@ require '../../templates/header.php';
                     <td class="small"><?= h($d['original_filename']) ?></td>
                     <td class="small text-muted"><?= h($d['user_name']) ?></td>
                     <td class="small text-muted"><?= format_bytes((int)$d['file_size']) ?></td>
-                    <td class="small text-muted"><?= h(date('M j, Y H:i', strtotime($d['notarized_at']))) ?></td>
+                    <td class="small text-muted"><?= $d['notarized_at'] ? h(date('M j, Y H:i', strtotime($d['notarized_at']))) : '<span class="badge bg-warning text-dark">Pending</span>' ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>

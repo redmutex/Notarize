@@ -41,10 +41,16 @@ require '../templates/header.php';
             </h2>
             <p class="text-muted mb-0">
                 <?= h($authUser['name']) ?> &mdash;
-                <?php if (empty($docs)): ?>
-                    no documents notarized yet
+                <?php
+                $approvedCount = count(array_filter($docs, fn($d) => ($d['status'] ?? 'approved') === 'approved'));
+                $pendingCount  = count(array_filter($docs, fn($d) => ($d['status'] ?? '') === 'pending'));
+                if (empty($docs)): ?>
+                    no documents yet
                 <?php else: ?>
-                    <?= count($docs) ?> document<?= count($docs) !== 1 ? 's' : '' ?> notarized
+                    <?= count($docs) ?> document<?= count($docs) !== 1 ? 's' : '' ?>
+                    <?php if ($pendingCount > 0): ?>
+                        · <span class="text-warning"><?= $pendingCount ?> pending</span>
+                    <?php endif; ?>
                 <?php endif; ?>
             </p>
         </div>
@@ -82,9 +88,17 @@ require '../templates/header.php';
                     </thead>
                     <tbody>
                     <?php foreach ($docs as $doc): ?>
+                        <?php $status = $doc['status'] ?? 'approved'; ?>
                         <tr>
                             <td>
-                                <i class="bi bi-file-earmark-lock2 me-2 text-primary"></i>
+                                <?php
+                                $icon = match($status) {
+                                    'pending'  => 'bi-hourglass-split text-warning',
+                                    'rejected' => 'bi-x-circle text-danger',
+                                    default    => 'bi-file-earmark-lock2 text-primary',
+                                };
+                                ?>
+                                <i class="bi <?= $icon ?> me-2"></i>
                                 <span title="<?= h($doc['original_filename']) ?>">
                                     <?= h(mb_strimwidth($doc['original_filename'], 0, 40, '…')) ?>
                                 </span>
@@ -96,20 +110,28 @@ require '../templates/header.php';
                             </td>
                             <td><?= h(format_bytes((int)$doc['file_size'])) ?></td>
                             <td>
-                                <span class="text-muted small">
-                                    <?= h(date('M j, Y  H:i', strtotime($doc['notarized_at']))) ?> UTC
-                                </span>
+                                <?php if ($status === 'pending'): ?>
+                                    <span class="badge bg-warning text-dark">Pending Review</span>
+                                <?php elseif ($status === 'rejected'): ?>
+                                    <span class="badge bg-danger">Rejected</span>
+                                <?php else: ?>
+                                    <span class="text-muted small">
+                                        <?= h(date('M j, Y  H:i', strtotime($doc['notarized_at']))) ?> UTC
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td class="text-end">
                                 <a href="/document.php?id=<?= (int)$doc['id'] ?>"
                                    class="btn btn-sm btn-gold me-1">
                                     <i class="bi bi-patch-check me-1"></i>View
                                 </a>
+                                <?php if ($status === 'approved'): ?>
                                 <a href="/verify.php?uuid=<?= h($doc['certificate_uuid']) ?>"
                                    class="btn btn-sm btn-outline-secondary me-1" target="_blank"
                                    title="Public verification page">
                                     <i class="bi bi-shield-check"></i>
                                 </a>
+                                <?php endif; ?>
                                 <button type="button"
                                         class="btn btn-sm btn-outline-danger"
                                         title="Permanently remove this document"

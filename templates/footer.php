@@ -17,6 +17,13 @@
                 <a href="/verify.php" class="text-white-50 small me-3 text-decoration-none">
                     <i class="bi bi-shield-check me-1"></i>Verify a Document
                 </a>
+                <a href="/help.php" class="text-white-50 small me-3 text-decoration-none">
+                    <i class="bi bi-question-circle me-1"></i>Help
+                </a>
+                <a href="https://help.redmutex.com/open.php?topicId=15" target="_blank" rel="noopener"
+                   class="text-white-50 small me-3 text-decoration-none">
+                    <i class="bi bi-headset me-1"></i>Get Support
+                </a>
                 <a href="/login.php" class="text-white-50 small text-decoration-none">
                     <i class="bi bi-box-arrow-in-right me-1"></i>Sign In
                 </a>

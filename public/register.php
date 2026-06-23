@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = $result['error'];
             } else {
                 $auth->login($email, $password);
-                flash('success', 'Welcome! Your account has been created.');
+                flash('success', 'Account created! Please check your email to verify your address before submitting documents.');
                 redirect('/dashboard.php');
             }
         }

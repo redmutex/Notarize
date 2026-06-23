@@ -43,9 +43,18 @@
                     </a>
                 </li>
                 <?php if (!empty($authUser['is_admin'])): ?>
+                <?php
+                    $__pendingCount = 0;
+                    try {
+                        $__pendingCount = (new App\Notarize())->getPendingCount();
+                    } catch (\Throwable $__e) {}
+                ?>
                 <li class="nav-item">
-                    <a class="nav-link text-warning" href="/admin/index.php">
+                    <a class="nav-link text-warning" href="/admin/pending.php">
                         <i class="bi bi-speedometer2 me-1"></i>Admin
+                        <?php if ($__pendingCount > 0): ?>
+                            <span class="badge bg-danger ms-1" style="font-size:.65rem;vertical-align:middle"><?= $__pendingCount ?></span>
+                        <?php endif; ?>
                     </a>
                 </li>
                 <?php endif; ?>
@@ -85,3 +94,16 @@
 </nav>
 
 <main>
+
+<?php if (!empty($authUser) && empty($authUser['email_verified'])): ?>
+<div class="alert alert-warning alert-dismissible mb-0 py-2 rounded-0 border-0 border-bottom" style="background:#fff3cd">
+    <div class="container d-flex align-items-center gap-2">
+        <i class="bi bi-envelope-exclamation-fill text-warning"></i>
+        <span class="small">
+            <strong>Verify your email</strong> to unlock document submissions.
+            <a href="/resend-verification.php" class="ms-2 text-decoration-none fw-semibold">Send verification email →</a>
+        </span>
+        <button type="button" class="btn-close btn-sm ms-auto" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+<?php endif; ?>

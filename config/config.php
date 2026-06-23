@@ -17,6 +17,19 @@ define('MAX_UPLOAD_BYTES', (int)($_ENV['MAX_UPLOAD_MB'] ?? 10) * 1024 * 1024);
 // PayPal (client ID is safe to expose to JS)
 define('PAYPAL_CLIENT_ID', $_ENV['PAYPAL_CLIENT_ID'] ?? '');
 
+// Admin
+define('ADMIN_EMAIL',    $_ENV['ADMIN_EMAIL']    ?? 'danial@redmutex.com');
+
+// Mail
+define('MAIL_FROM',      $_ENV['MAIL_FROM']      ?? 'noreply@notarize.onrite.cloud');
+define('MAIL_FROM_NAME', $_ENV['MAIL_FROM_NAME'] ?? 'Notarize');
+define('MAIL_DRIVER',    $_ENV['MAIL_DRIVER']    ?? 'sendmail'); // 'sendmail' | 'smtp'
+define('MAIL_HOST',      $_ENV['MAIL_HOST']      ?? '');
+define('MAIL_PORT',      (int)($_ENV['MAIL_PORT'] ?? 587));
+define('MAIL_USER',      $_ENV['MAIL_USER']      ?? '');
+define('MAIL_PASS',      $_ENV['MAIL_PASS']      ?? '');
+define('MAIL_ENCRYPTION',$_ENV['MAIL_ENCRYPTION']?? 'tls'); // 'tls' | 'ssl'
+
 // ── Production hardening ──────────────────────────────────────────────────────
 
 if (APP_ENV === 'production') {

@@ -6,7 +6,6 @@ namespace App;
 use PDO;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
-use App\NotarizePDF;
 
 class Notarize
 {
@@ -26,6 +25,12 @@ class Notarize
         'text/plain',
     ];
 
+    private const ALLOWED_ID_MIME = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
     public function __construct()
     {
         $this->db             = Database::getInstance();
@@ -34,93 +39,180 @@ class Notarize
         $this->uploadDir      = UPLOAD_DIR;
     }
 
-    public function notarize(int $userId, array $file): array
+    // ── Submission (pending → admin review) ──────────────────────────
+
+    public function submit(int $userId, array $docFile, array $photoIdFile, array $selfieFile): array
     {
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            return ['error' => $this->uploadErrorMessage($file['error'])];
+        // Validate document
+        if ($docFile['error'] !== UPLOAD_ERR_OK) {
+            return ['error' => 'Document: ' . $this->uploadErrorMessage($docFile['error'])];
         }
-
         $finfo    = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($file['tmp_name']);
-
+        $mimeType = $finfo->file($docFile['tmp_name']);
         if (!in_array($mimeType, self::ALLOWED_MIME, true)) {
-            return ['error' => 'Unsupported file type. Allowed: PDF, images (JPG/PNG/GIF/WebP), Word documents, plain text.'];
+            return ['error' => 'Unsupported document type. Allowed: PDF, images, Word, plain text.'];
+        }
+        if ($docFile['size'] > MAX_UPLOAD_BYTES) {
+            return ['error' => 'Document exceeds the ' . (MAX_UPLOAD_BYTES / 1024 / 1024) . ' MB size limit.'];
         }
 
-        if ($file['size'] > MAX_UPLOAD_BYTES) {
-            return ['error' => 'File exceeds the ' . (MAX_UPLOAD_BYTES / 1024 / 1024) . ' MB size limit.'];
+        // Validate photo ID
+        if ($photoIdFile['error'] !== UPLOAD_ERR_OK) {
+            return ['error' => 'Photo ID: ' . $this->uploadErrorMessage($photoIdFile['error'])];
+        }
+        $photoMime = $finfo->file($photoIdFile['tmp_name']);
+        if (!in_array($photoMime, self::ALLOWED_ID_MIME, true)) {
+            return ['error' => 'Photo ID must be a JPEG, PNG, or WebP image.'];
+        }
+        if ($photoIdFile['size'] > 10 * 1024 * 1024) {
+            return ['error' => 'Photo ID image is too large (max 10 MB).'];
         }
 
-        $fileHash = hash_file('sha256', $file['tmp_name']);
-
-        $privateKeyPem = @file_get_contents($this->privateKeyPath);
-        if (!$privateKeyPem) {
-            return ['error' => 'Signing key unavailable. Please contact support.'];
+        // Validate selfie
+        if ($selfieFile['error'] !== UPLOAD_ERR_OK) {
+            return ['error' => 'Selfie: ' . $this->uploadErrorMessage($selfieFile['error'])];
+        }
+        $selfieMime = $finfo->file($selfieFile['tmp_name']);
+        if (!in_array($selfieMime, self::ALLOWED_ID_MIME, true)) {
+            return ['error' => 'Selfie must be a JPEG, PNG, or WebP image.'];
+        }
+        if ($selfieFile['size'] > 10 * 1024 * 1024) {
+            return ['error' => 'Selfie image is too large (max 10 MB).'];
         }
 
-        $privateKey = openssl_pkey_get_private($privateKeyPem);
-        if (!$privateKey) {
-            return ['error' => 'Invalid signing key. Please contact support.'];
-        }
-
-        if (!openssl_sign($fileHash, $rawSignature, $privateKey, OPENSSL_ALGO_SHA256)) {
-            return ['error' => 'Failed to sign document.'];
-        }
-
-        $signature = base64_encode($rawSignature);
-        $uuid      = $this->generateUuid();
-
+        // Prepare storage directory
         $userDir = $this->uploadDir . '/' . $userId;
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);
         }
 
-        $ext        = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $storedName = $uuid . '.' . $ext;
-        move_uploaded_file($file['tmp_name'], $userDir . '/' . $storedName);
+        // Generate a temporary UUID for file naming (will be replaced on approval)
+        $tempId = bin2hex(random_bytes(16));
 
+        // Store document
+        $ext         = strtolower(pathinfo($docFile['name'], PATHINFO_EXTENSION));
+        $storedName  = $tempId . '.' . $ext;
+        move_uploaded_file($docFile['tmp_name'], $userDir . '/' . $storedName);
+
+        // Store photo ID
+        $photoExt      = strtolower(pathinfo($photoIdFile['name'], PATHINFO_EXTENSION)) ?: 'jpg';
+        $photoFilename = $tempId . '_photo_id.' . $photoExt;
+        move_uploaded_file($photoIdFile['tmp_name'], $userDir . '/' . $photoFilename);
+
+        // Store selfie
+        $selfieExt      = strtolower(pathinfo($selfieFile['name'], PATHINFO_EXTENSION)) ?: 'jpg';
+        $selfieFilename = $tempId . '_selfie.' . $selfieExt;
+        move_uploaded_file($selfieFile['tmp_name'], $userDir . '/' . $selfieFilename);
+
+        // Create pending DB record
         $stmt = $this->db->prepare(
-            'INSERT INTO documents
-             (user_id, original_filename, stored_filename, mime_type, file_size, file_hash, signature, certificate_uuid)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            "INSERT INTO documents
+             (user_id, status, original_filename, stored_filename, photo_id_filename, selfie_filename,
+              mime_type, file_size, file_hash, signature, certificate_uuid, notarized_at)
+             VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)"
         );
         $stmt->execute([
             $userId,
-            $file['name'],
+            $docFile['name'],
             $storedName,
+            $photoFilename,
+            $selfieFilename,
             $mimeType,
-            $file['size'],
-            $fileHash,
-            $signature,
-            $uuid,
+            $docFile['size'],
         ]);
-
         $docId = (int)$this->db->lastInsertId();
 
-        // Generate notarized PDF (best-effort; does not fail the notarization)
-        try {
-            $nameStmt = $this->db->prepare('SELECT name FROM users WHERE id = ?');
-            $nameStmt->execute([$userId]);
-            $docData = [
-                'user_id'           => $userId,
-                'certificate_uuid'  => $uuid,
-                'stored_filename'   => $storedName,
-                'original_filename' => $file['name'],
-                'mime_type'         => $mimeType,
-                'file_size'         => $file['size'],
-                'file_hash'         => $fileHash,
-                'signature'         => $signature,
-                'notarized_at'      => date('Y-m-d H:i:s'),
-                'user_name'         => $nameStmt->fetchColumn() ?? '',
-            ];
-            $verifyUrl = APP_URL . '/verify.php?uuid=' . $uuid;
-            (new NotarizePDF())->generate($docData, $verifyUrl, $this->uploadDir);
-        } catch (\Throwable $e) {
-            // Non-critical — PDF is generated lazily on first view if this fails
+        // Notify admin
+        $doc  = $this->getDocumentForAdmin($docId);
+        $user = $this->getUserById($userId);
+        if ($doc && $user) {
+            (new Mailer())->sendAdminReviewRequest($doc, $user);
         }
 
-        return ['success' => true, 'id' => $docId, 'uuid' => $uuid];
+        return ['success' => true, 'id' => $docId];
     }
+
+    // ── Admin approval: sign + issue certificate ──────────────────────
+
+    public function approve(int $docId, int $adminId): array
+    {
+        $doc = $this->getDocumentForAdmin($docId);
+        if (!$doc || $doc['status'] !== 'pending') {
+            return ['error' => 'Document not found or not in pending state.'];
+        }
+
+        $filePath = $this->uploadDir . '/' . (int)$doc['user_id'] . '/' . $doc['stored_filename'];
+        if (!is_file($filePath)) {
+            return ['error' => 'Stored document file not found.'];
+        }
+
+        // Cryptographic signing
+        $fileHash     = hash_file('sha256', $filePath);
+        $privateKeyPem = @file_get_contents($this->privateKeyPath);
+        if (!$privateKeyPem) {
+            return ['error' => 'Signing key unavailable.'];
+        }
+        $privateKey = openssl_pkey_get_private($privateKeyPem);
+        if (!$privateKey) {
+            return ['error' => 'Invalid signing key.'];
+        }
+        if (!openssl_sign($fileHash, $rawSignature, $privateKey, OPENSSL_ALGO_SHA256)) {
+            return ['error' => 'Failed to sign document.'];
+        }
+        $signature = base64_encode($rawSignature);
+        $uuid      = $this->generateUuid();
+        $now       = date('Y-m-d H:i:s');
+
+        // Update DB record
+        $this->db->prepare(
+            "UPDATE documents
+             SET status = 'approved', file_hash = ?, signature = ?, certificate_uuid = ?,
+                 notarized_at = ?, reviewed_by = ?, reviewed_at = NOW()
+             WHERE id = ?"
+        )->execute([$fileHash, $signature, $uuid, $now, $adminId, $docId]);
+
+        // Re-fetch with updated fields for PDF generation
+        $doc = $this->getDocumentForAdmin($docId);
+        $user = $this->getUserById((int)$doc['user_id']);
+
+        // Generate notarized PDF
+        try {
+            $verifyUrl = APP_URL . '/verify.php?uuid=' . $uuid;
+            (new NotarizePDF())->generate($doc, $verifyUrl, $this->uploadDir);
+        } catch (\Throwable $e) {
+            error_log('[Notarize] PDF generation failed for doc #' . $docId . ': ' . $e->getMessage());
+        }
+
+        // Email user
+        if ($user) {
+            (new Mailer())->sendApprovalConfirmation($doc, $user);
+        }
+
+        return ['success' => true, 'uuid' => $uuid];
+    }
+
+    public function reject(int $docId, int $adminId, string $notes): bool
+    {
+        $doc = $this->getDocumentForAdmin($docId);
+        if (!$doc || $doc['status'] !== 'pending') {
+            return false;
+        }
+
+        $this->db->prepare(
+            "UPDATE documents
+             SET status = 'rejected', review_notes = ?, reviewed_by = ?, reviewed_at = NOW()
+             WHERE id = ?"
+        )->execute([trim($notes), $adminId, $docId]);
+
+        $user = $this->getUserById((int)$doc['user_id']);
+        if ($user) {
+            (new Mailer())->sendRejectionNotice($doc, $user, trim($notes));
+        }
+
+        return true;
+    }
+
+    // ── Document retrieval ────────────────────────────────────────────
 
     public function getDocument(int $id, int $userId): ?array
     {
@@ -134,13 +226,26 @@ class Notarize
         return $stmt->fetch() ?: null;
     }
 
-    public function getDocumentByUuid(string $uuid): ?array
+    public function getDocumentForAdmin(int $id): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT d.*, u.name AS user_name, u.email AS user_email
              FROM documents d
              JOIN users u ON d.user_id = u.id
-             WHERE d.certificate_uuid = ?'
+             WHERE d.id = ?'
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getDocumentByUuid(string $uuid): ?array
+    {
+        // Only return approved (notarized) documents on public verify page
+        $stmt = $this->db->prepare(
+            "SELECT d.*, u.name AS user_name, u.email AS user_email
+             FROM documents d
+             JOIN users u ON d.user_id = u.id
+             WHERE d.certificate_uuid = ? AND d.status = 'approved'"
         );
         $stmt->execute([$uuid]);
         $doc = $stmt->fetch();
@@ -149,9 +254,9 @@ class Notarize
         }
 
         $publicKeyPem = @file_get_contents($this->publicKeyPath);
-        if ($publicKeyPem) {
-            $result               = openssl_verify($doc['file_hash'], base64_decode($doc['signature']), $publicKeyPem, OPENSSL_ALGO_SHA256);
-            $doc['sig_valid']     = ($result === 1);
+        if ($publicKeyPem && $doc['file_hash'] && $doc['signature']) {
+            $result           = openssl_verify($doc['file_hash'], base64_decode($doc['signature']), $publicKeyPem, OPENSSL_ALGO_SHA256);
+            $doc['sig_valid'] = ($result === 1);
         } else {
             $doc['sig_valid'] = null;
         }
@@ -162,16 +267,37 @@ class Notarize
     public function getUserDocuments(int $userId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT * FROM documents WHERE user_id = ? ORDER BY notarized_at DESC'
+            'SELECT * FROM documents WHERE user_id = ? ORDER BY submitted_at DESC'
         );
         $stmt->execute([$userId]);
         return $stmt->fetchAll();
     }
 
+    public function getPendingDocuments(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT d.*, u.name AS user_name, u.email AS user_email
+             FROM documents d
+             JOIN users u ON d.user_id = u.id
+             WHERE d.status = 'pending'
+             ORDER BY d.submitted_at ASC"
+        );
+        return $stmt->fetchAll();
+    }
+
+    public function getPendingCount(): int
+    {
+        return (int)$this->db->query(
+            "SELECT COUNT(*) FROM documents WHERE status = 'pending'"
+        )->fetchColumn();
+    }
+
+    // ── File management ───────────────────────────────────────────────
+
     public function delete(int $id, int $userId): bool
     {
         $stmt = $this->db->prepare(
-            'SELECT user_id, stored_filename FROM documents WHERE id = ?'
+            'SELECT user_id, stored_filename, photo_id_filename, selfie_filename FROM documents WHERE id = ?'
         );
         $stmt->execute([$id]);
         $doc = $stmt->fetch();
@@ -180,14 +306,24 @@ class Notarize
             return false;
         }
 
-        $file = $this->uploadDir . '/' . $userId . '/' . $doc['stored_filename'];
-        if (is_file($file)) {
-            @unlink($file);
+        $base = $this->uploadDir . '/' . $userId . '/';
+        foreach (['stored_filename', 'photo_id_filename', 'selfie_filename'] as $col) {
+            if ($doc[$col] && is_file($base . $doc[$col])) {
+                @unlink($base . $doc[$col]);
+            }
+        }
+        // Remove notarized PDF if present
+        if ($doc['stored_filename']) {
+            $stem = pathinfo($doc['stored_filename'], PATHINFO_FILENAME);
+            $pdf  = $base . $stem . '_notarized.pdf';
+            if (is_file($pdf)) @unlink($pdf);
         }
 
         $this->db->prepare('DELETE FROM documents WHERE id = ?')->execute([$id]);
         return true;
     }
+
+    // ── QR code ──────────────────────────────────────────────────────
 
     public function generateQrHtml(string $url): string
     {
@@ -203,6 +339,15 @@ class Notarize
         } catch (\Throwable $e) {
             return '<div style="width:160px;height:160px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#888">QR unavailable</div>';
         }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────
+
+    private function getUserById(int $userId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT id, name, email FROM users WHERE id = ?');
+        $stmt->execute([$userId]);
+        return $stmt->fetch() ?: null;
     }
 
     private function generateUuid(): string

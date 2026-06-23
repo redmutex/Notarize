@@ -44,12 +44,19 @@ class Auth
             return ['error' => 'An account with that email already exists.'];
         }
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)'
-        );
-        $stmt->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT)]);
+        $token = bin2hex(random_bytes(32));
 
-        return ['success' => true, 'id' => (int)$this->db->lastInsertId()];
+        $stmt = $this->db->prepare(
+            'INSERT INTO users (name, email, password_hash, email_verified, email_verify_token)
+             VALUES (?, ?, ?, 0, ?)'
+        );
+        $stmt->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $token]);
+        $userId = (int)$this->db->lastInsertId();
+
+        // Send verification email (best-effort)
+        (new Mailer())->sendVerification($email, $name, $token);
+
+        return ['success' => true, 'id' => $userId];
     }
 
     public function login(string $email, string $password): array
@@ -57,7 +64,7 @@ class Auth
         $email = strtolower(trim($email));
         $ip    = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
-        // Rate limiting: block IP after 15 failed attempts in 15 minutes
+        // Rate limiting: block after 15 failed attempts per IP or email in 15 minutes
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM login_attempts
              WHERE (ip = ? OR email = ?) AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
@@ -75,23 +82,23 @@ class Auth
             $this->db->prepare(
                 "INSERT INTO login_attempts (ip, email) VALUES (?, ?)"
             )->execute([$ip, $email]);
-            // Prune old rows probabilistically to keep the table small
             if (mt_rand(1, 50) === 1) {
                 $this->db->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)");
             }
             return ['error' => 'Invalid email or password.'];
         }
 
-        // Successful login — clear attempt history for this IP/email
+        // Clear attempt history on success
         $this->db->prepare(
             "DELETE FROM login_attempts WHERE ip = ? OR email = ?"
         )->execute([$ip, $email]);
 
         session_regenerate_id(true);
-        $_SESSION['user_id']       = $user['id'];
-        $_SESSION['user_name']     = $user['name'];
-        $_SESSION['user_email']    = $user['email'];
-        $_SESSION['user_is_admin'] = (bool)($user['is_admin'] ?? false);
+        $_SESSION['user_id']            = $user['id'];
+        $_SESSION['user_name']          = $user['name'];
+        $_SESSION['user_email']         = $user['email'];
+        $_SESSION['user_is_admin']      = (bool)($user['is_admin'] ?? false);
+        $_SESSION['user_email_verified']= (bool)($user['email_verified'] ?? false);
 
         return ['success' => true];
     }
@@ -111,6 +118,11 @@ class Auth
         return !empty($_SESSION['user_id']);
     }
 
+    public function isEmailVerified(): bool
+    {
+        return !empty($_SESSION['user_email_verified']);
+    }
+
     public function requireAuth(): void
     {
         if (!$this->isLoggedIn()) {
@@ -125,10 +137,60 @@ class Auth
             return null;
         }
         return [
-            'id'       => (int)$_SESSION['user_id'],
-            'name'     => $_SESSION['user_name'],
-            'email'    => $_SESSION['user_email'],
-            'is_admin' => (bool)($_SESSION['user_is_admin'] ?? false),
+            'id'             => (int)$_SESSION['user_id'],
+            'name'           => $_SESSION['user_name'],
+            'email'          => $_SESSION['user_email'],
+            'is_admin'       => (bool)($_SESSION['user_is_admin'] ?? false),
+            'email_verified' => (bool)($_SESSION['user_email_verified'] ?? false),
         ];
+    }
+
+    public function verifyEmail(string $token): bool
+    {
+        if (strlen($token) !== 64 || !ctype_xdigit($token)) {
+            return false;
+        }
+        $stmt = $this->db->prepare(
+            "SELECT id FROM users WHERE email_verify_token = ? AND email_verified = 0"
+        );
+        $stmt->execute([$token]);
+        $userId = $stmt->fetchColumn();
+        if (!$userId) {
+            return false;
+        }
+        $this->db->prepare(
+            "UPDATE users SET email_verified = 1, email_verify_token = NULL WHERE id = ?"
+        )->execute([$userId]);
+
+        // Update session if this is the currently-logged-in user
+        if (isset($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$userId) {
+            $_SESSION['user_email_verified'] = true;
+        }
+        return true;
+    }
+
+    public function resendVerification(int $userId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT name, email, email_verified FROM users WHERE id = ?"
+        );
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch();
+        if (!$user || $user['email_verified']) {
+            return false;
+        }
+        $token = bin2hex(random_bytes(32));
+        $this->db->prepare(
+            "UPDATE users SET email_verify_token = ? WHERE id = ?"
+        )->execute([$token, $userId]);
+
+        return (new Mailer())->sendVerification($user['email'], $user['name'], $token);
+    }
+
+    public function isAdmin(int $userId): bool
+    {
+        $stmt = $this->db->prepare("SELECT is_admin FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        return (bool)$stmt->fetchColumn();
     }
 }

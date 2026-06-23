@@ -43,6 +43,10 @@ jobs:
           PAYPAL_ELITE_PLAN_ID=${{ vars.PAYPAL_ELITE_PLAN_ID }}
           PAYPAL_WEBHOOK_ID=${{ vars.PAYPAL_WEBHOOK_ID }}
           PAYPAL_MODE=${{ vars.PAYPAL_MODE }}
+          ADMIN_EMAIL=danial@redmutex.com
+          MAIL_FROM=noreply@notarize.onrite.cloud
+          MAIL_FROM_NAME=Notarize
+          MAIL_DRIVER=sendmail
           EOF
 
       - name: Sync files to server
