@@ -163,7 +163,32 @@ class Notarize
         $uuid      = $this->generateUuid();
         $now       = date('Y-m-d H:i:s');
 
-        // Update DB record
+        // Build the synthetic doc array needed by NotarizePDF before touching the DB.
+        // generate() needs notarized_at, certificate_uuid, signature, file_hash, user_name.
+        $user = $this->getUserById((int)$doc['user_id']);
+        $docForPdf = array_merge($doc, [
+            'file_hash'       => $fileHash,
+            'signature'       => $signature,
+            'certificate_uuid'=> $uuid,
+            'notarized_at'    => $now,
+            'user_name'       => $user['name'] ?? '',
+        ]);
+
+        // Generate PDF first — if it fails the DB stays untouched and the doc remains pending.
+        $verifyUrl  = APP_URL . '/verify.php?uuid=' . $uuid;
+        $pdfOutPath = $this->uploadDir . '/' . (int)$doc['user_id'] . '/' . $uuid . '_notarized.pdf';
+        try {
+            $generated = (new NotarizePDF())->generate($docForPdf, $verifyUrl, $this->uploadDir);
+        } catch (\Throwable $e) {
+            $generated = null;
+            error_log('[Notarize] PDF generation exception for doc #' . $docId . ': ' . $e->getMessage());
+        }
+
+        if (!$generated || !is_file($pdfOutPath)) {
+            return ['error' => 'PDF generation failed. Document has not been approved.'];
+        }
+
+        // PDF confirmed on disk — now commit the approval to the DB.
         $this->db->prepare(
             "UPDATE documents
              SET status = 'approved', file_hash = ?, signature = ?, certificate_uuid = ?,
@@ -171,21 +196,10 @@ class Notarize
              WHERE id = ?"
         )->execute([$fileHash, $signature, $uuid, $now, $adminId, $docId]);
 
-        // Re-fetch with updated fields for PDF generation
-        $doc = $this->getDocumentForAdmin($docId);
-        $user = $this->getUserById((int)$doc['user_id']);
-
-        // Generate notarized PDF
-        try {
-            $verifyUrl = APP_URL . '/verify.php?uuid=' . $uuid;
-            (new NotarizePDF())->generate($doc, $verifyUrl, $this->uploadDir);
-        } catch (\Throwable $e) {
-            error_log('[Notarize] PDF generation failed for doc #' . $docId . ': ' . $e->getMessage());
-        }
-
         // Email user
         if ($user) {
-            (new Mailer())->sendApprovalConfirmation($doc, $user);
+            $docForPdf['id'] = $docId; // ensure id is present for email links
+            (new Mailer())->sendApprovalConfirmation($docForPdf, $user);
         }
 
         return ['success' => true, 'uuid' => $uuid];

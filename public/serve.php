@@ -4,7 +4,6 @@ require_once '../config/config.php';
 require_once '../src/helpers.php';
 use App\Auth;
 use App\Notarize;
-use App\NotarizePDF;
 
 $auth     = new Auth();
 $authUser = $auth->user();
@@ -68,19 +67,10 @@ switch ($fileType) {
         break;
 
     default: // 'notarized'
-        $uuid     = $doc['certificate_uuid'] ?? '';
-        $filePath = $base . basename($uuid) . '_notarized.pdf';
+        $uuid        = $doc['certificate_uuid'] ?? '';
+        $filePath    = $base . basename($uuid) . '_notarized.pdf';
         $contentType = 'application/pdf';
         $dlName      = 'notarized_' . pathinfo($doc['original_filename'], PATHINFO_FILENAME) . '.pdf';
-
-        if (!is_file($filePath) && $uuid && $doc['status'] === 'approved') {
-            try {
-                $verifyUrl = APP_URL . '/verify.php?uuid=' . urlencode($uuid);
-                (new NotarizePDF())->generate($doc, $verifyUrl, $uploadDir);
-            } catch (\Throwable $e) {
-                // fall through to 404
-            }
-        }
         break;
 }
 
