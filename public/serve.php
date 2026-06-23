@@ -25,11 +25,9 @@ if (!$doc) {
     exit('Not found.');
 }
 
-// Original file access requires authentication and ownership
+// Original files are private — only the owner may access them
 if ($fileType === 'original') {
-    $ownerAllowed = $authUser && (int)$authUser['id'] === (int)$doc['user_id'];
-    $uuidAllowed  = isset($_GET['uuid']); // public verify link may also show original
-    if (!$ownerAllowed && !$uuidAllowed) {
+    if (!$authUser || (int)$authUser['id'] !== (int)$doc['user_id']) {
         http_response_code(403);
         exit('Forbidden.');
     }

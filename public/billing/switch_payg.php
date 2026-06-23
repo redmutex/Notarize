@@ -9,9 +9,8 @@ $auth = new Auth();
 $auth->requireAuth();
 $authUser = $auth->user();
 
-// CSRF via query param (GET link from plans.php)
-if (($_GET['csrf'] ?? '') !== csrf_token()) {
-    http_response_code(403);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_verify()) {
+    http_response_code(405);
     redirect('/plans.php');
 }
 

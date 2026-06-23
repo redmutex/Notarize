@@ -9,6 +9,7 @@ header('Content-Type: application/json');
 
 $auth = new Auth();
 if (!$auth->isLoggedIn()) {
+    http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
@@ -16,9 +17,13 @@ if (!$auth->isLoggedIn()) {
 $billing = new Billing();
 $order   = $billing->createPaygOrder();
 
-if (isset($order['id'])) {
-    echo json_encode(['id' => $order['id']]);
-} else {
+if (!isset($order['id'])) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to create PayPal order']);
+    exit;
 }
+
+// Bind this order to the session so payg_capture.php can verify it
+$_SESSION['payg_pending_order'] = $order['id'];
+
+echo json_encode(['id' => $order['id']]);

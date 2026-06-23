@@ -139,6 +139,9 @@ class Billing
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERPWD        => ($_ENV['PAYPAL_CLIENT_ID'] ?? '') . ':' . ($_ENV['PAYPAL_CLIENT_SECRET'] ?? ''),
             CURLOPT_POSTFIELDS     => 'grant_type=client_credentials',
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
@@ -154,6 +157,9 @@ class Billing
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_HTTPHEADER     => [
                 'Authorization: Bearer ' . $this->paypalToken(),
                 'Content-Type: application/json',
@@ -165,6 +171,31 @@ class Billing
         $resp = json_decode((string)curl_exec($ch), true);
         curl_close($ch);
         return $resp ?? [];
+    }
+
+    public function verifyWebhookSignature(string $body, array $headers): bool
+    {
+        $webhookId = $_ENV['PAYPAL_WEBHOOK_ID'] ?? '';
+        if (!$webhookId) {
+            return false; // Reject if webhook ID not configured
+        }
+
+        $event = json_decode($body, true);
+        if (!is_array($event)) {
+            return false;
+        }
+
+        $resp = $this->paypalRequest('POST', '/v1/notifications/verify-webhook-signature', [
+            'auth_algo'         => $headers['PAYPAL_AUTH_ALGO']         ?? '',
+            'cert_url'          => $headers['PAYPAL_CERT_URL']          ?? '',
+            'transmission_id'   => $headers['PAYPAL_TRANSMISSION_ID']   ?? '',
+            'transmission_sig'  => $headers['PAYPAL_TRANSMISSION_SIG']  ?? '',
+            'transmission_time' => $headers['PAYPAL_TRANSMISSION_TIME'] ?? '',
+            'webhook_id'        => $webhookId,
+            'webhook_event'     => $event,
+        ]);
+
+        return ($resp['verification_status'] ?? '') === 'SUCCESS';
     }
 
     // ── Subscriptions ────────────────────────────────────────────────

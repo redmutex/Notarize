@@ -161,10 +161,11 @@ require '../templates/header.php';
                     </ul>
                     <?php if ($plan === 'payg'): ?>
                         <span class="btn btn-secondary w-100 disabled">Current plan</span>
-                    <?php elseif (!empty($ppClientId)): ?>
-                        <div id="paypal-payg-btn"></div>
                     <?php else: ?>
-                        <span class="btn btn-outline-secondary w-100 disabled">PayPal not configured</span>
+                        <form method="post" action="/billing/switch_payg.php">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="btn btn-outline-primary w-100">Switch to Pay As You Go</button>
+                        </form>
                     <?php endif; ?>
                 </div>
             </div>
@@ -229,16 +230,6 @@ require '../templates/header.php';
     subButton('paypal-elite-btn', '<?= h($ppElitePlan) ?>', 'elite');
     <?php endif; ?>
 
-    <?php if ($plan !== 'payg'): ?>
-    // PAYG: switch plan (no subscription, just update preference in backend)
-    if (document.getElementById('paypal-payg-btn')) {
-        const btn = document.createElement('a');
-        btn.href  = '/billing/switch_payg.php?csrf=<?= csrf_token() ?>';
-        btn.className = 'btn btn-outline-primary w-100';
-        btn.textContent = 'Switch to Pay As You Go';
-        document.getElementById('paypal-payg-btn').replaceWith(btn);
-    }
-    <?php endif; ?>
 })();
 </script>
 <?php endif; ?>

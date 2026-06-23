@@ -23,8 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = $result['error'];
         } else {
             $redirect = $_GET['redirect'] ?? '/dashboard.php';
-            // Basic safety: only allow relative redirects
-            if (!str_starts_with($redirect, '/')) {
+            // Prevent open redirect: must be a relative path starting with / but not // or /\
+            if (!preg_match('/^\/[^\/\\\\]/', $redirect)) {
                 $redirect = '/dashboard.php';
             }
             redirect($redirect);
