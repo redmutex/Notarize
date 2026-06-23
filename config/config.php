@@ -82,6 +82,24 @@ if (!headers_sent()) {
     header('Content-Security-Policy: ' . $csp);
 }
 
+// ── HTTPS enforcement (production only) ──────────────────────────────────────
+// Redirect plain-HTTP requests before any output, including before session start.
+
+if (APP_ENV === 'production' && !headers_sent()) {
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+               || ($_SERVER['SERVER_PORT'] ?? '') === '443';
+
+    // Exclude webhook endpoint from redirect (PayPal sends to specific URL)
+    $isWebhook = str_contains($_SERVER['REQUEST_URI'] ?? '', '/billing/webhook.php');
+
+    if (!$isHttps && !$isWebhook) {
+        $host = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $_SERVER['HTTP_HOST'] ?? 'notarize.onrite.cloud');
+        header('Location: https://' . $host . $_SERVER['REQUEST_URI'], true, 301);
+        exit;
+    }
+}
+
 // ── Session ───────────────────────────────────────────────────────────────────
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -92,5 +110,6 @@ if (session_status() === PHP_SESSION_NONE) {
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+    session_name('ntz_sess');
     session_start();
 }

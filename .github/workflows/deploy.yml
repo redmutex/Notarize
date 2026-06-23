@@ -59,7 +59,7 @@ jobs:
           target: /var/www/notarize
           strip_components: 0
 
-      - name: Run migrations and clear PDF cache
+      - name: Run migrations and post-deploy hardening
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SSH_HOST }}
@@ -68,6 +68,10 @@ jobs:
           script: |
             set -euo pipefail
             cd /var/www/notarize
+            # Restrict .env so only www-data can read it
+            chmod 640 .env
+            # Run database migrations
             php migrations/migrate.php
+            # Remove stale notarized PDFs so they are regenerated on next request
             find /var/www/notarize/uploads -name "*_notarized.pdf" -delete 2>/dev/null || true
             echo "Deploy complete: $(date -u)"

@@ -4,12 +4,17 @@ require_once '../../config/config.php';
 require_once '../../src/helpers.php';
 use App\Auth;
 use App\Billing;
-use TCPDF;
+use App\Database;
 
 $auth     = new Auth();
 $auth->requireAuth();
 $authUser = $auth->user();
-$isAdmin  = !empty($_SESSION['user_is_admin']);
+
+// Re-query DB for admin status — never trust session alone for privileged access
+$_db     = Database::getInstance();
+$_stmt   = $_db->prepare("SELECT is_admin FROM users WHERE id = ?");
+$_stmt->execute([$authUser['id']]);
+$isAdmin = (bool)$_stmt->fetchColumn();
 
 $id      = (int)($_GET['id'] ?? 0);
 if (!$id) {

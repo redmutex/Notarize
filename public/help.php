@@ -136,8 +136,8 @@ require '../templates/header.php';
                 <div class="accordion-body text-muted">
                     <ul class="mb-0">
                         <li><strong>Lite (Free)</strong> — 1 document per month, perfect for trying the service.</li>
-                        <li><strong>Pro ($19/mo)</strong> — 10 documents per month for regular users.</li>
-                        <li><strong>Elite ($49/mo)</strong> — 50 documents per month for high-volume users.</li>
+                        <li><strong>Pro ($10/mo)</strong> — 10 documents per month for regular users.</li>
+                        <li><strong>Elite ($50/mo)</strong> — 100 documents per month for high-volume users.</li>
                         <li><strong>Pay As You Go ($3/document)</strong> — no subscription, pay only for what you use.</li>
                     </ul>
                     Subscriptions are billed monthly and can be cancelled at any time.

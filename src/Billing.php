@@ -46,7 +46,7 @@ class Billing
             ];
         }
 
-        $limit = self::PLANS[$plan]['docs'];
+        $limit = self::PLANS[$plan]['docs'] ?? 0;
         $used  = (int)$user['plan_docs_used'];
 
         if ($used >= $limit) {
@@ -281,8 +281,24 @@ class Billing
 
     public function handleWebhook(string $body, array $headers): void
     {
-        $event = json_decode($body, true) ?? [];
-        $type  = $event['event_type'] ?? '';
+        $event   = json_decode($body, true) ?? [];
+        $type    = $event['event_type'] ?? '';
+        $eventId = $event['id'] ?? '';
+
+        // Deduplicate: reject events we've already processed (replay protection)
+        if ($eventId) {
+            try {
+                $this->db->prepare(
+                    "INSERT INTO webhook_events (event_id, event_type) VALUES (?, ?)"
+                )->execute([$eventId, $type]);
+            } catch (\PDOException $e) {
+                // Unique constraint violation = duplicate event
+                if ($e->getCode() === '23000') {
+                    return;
+                }
+                throw $e;
+            }
+        }
 
         if (str_starts_with($type, 'PAYMENT.SALE.COMPLETED') ||
             $type === 'BILLING.SUBSCRIPTION.ACTIVATED') {

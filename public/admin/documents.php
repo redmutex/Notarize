@@ -26,23 +26,39 @@ if (!in_array($filterStatus, ['pending', 'approved', 'rejected'], true)) {
 $page    = max(1, (int)($_GET['page'] ?? 1));
 $billing = new Billing();
 
-// Use extended getAllDocuments with optional status filter
-$perPage = 25;
-$offset  = ($page - 1) * $perPage;
-$where   = $filterStatus ? "WHERE d.status = " . $db->quote($filterStatus) : '';
-$total   = (int)$db->query("SELECT COUNT(*) FROM documents d $where")->fetchColumn();
-$stmt    = $db->prepare(
-    "SELECT d.id, d.user_id, d.original_filename, d.mime_type, d.file_size,
-            d.status, d.submitted_at, d.notarized_at, d.certificate_uuid,
-            d.review_notes, d.photo_id_filename, d.selfie_filename,
-            u.name AS user_name, u.email AS user_email
-     FROM documents d
-     JOIN users u ON d.user_id = u.id
-     $where
-     ORDER BY d.submitted_at DESC
-     LIMIT ? OFFSET ?"
-);
-$stmt->execute([$perPage, $offset]);
+// Parameterized status filter — no string interpolation
+$perPage    = 25;
+$offset     = ($page - 1) * $perPage;
+$bindParams = $filterStatus ? [$filterStatus] : [];
+
+$countSql = $filterStatus
+    ? "SELECT COUNT(*) FROM documents d WHERE d.status = ?"
+    : "SELECT COUNT(*) FROM documents d";
+$countStmt = $db->prepare($countSql);
+$countStmt->execute($bindParams);
+$total = (int)$countStmt->fetchColumn();
+
+$dataSql = $filterStatus
+    ? "SELECT d.id, d.user_id, d.original_filename, d.mime_type, d.file_size,
+              d.status, d.submitted_at, d.notarized_at, d.certificate_uuid,
+              d.review_notes, d.photo_id_filename, d.selfie_filename,
+              u.name AS user_name, u.email AS user_email
+       FROM documents d
+       JOIN users u ON d.user_id = u.id
+       WHERE d.status = ?
+       ORDER BY d.submitted_at DESC
+       LIMIT ? OFFSET ?"
+    : "SELECT d.id, d.user_id, d.original_filename, d.mime_type, d.file_size,
+              d.status, d.submitted_at, d.notarized_at, d.certificate_uuid,
+              d.review_notes, d.photo_id_filename, d.selfie_filename,
+              u.name AS user_name, u.email AS user_email
+       FROM documents d
+       JOIN users u ON d.user_id = u.id
+       ORDER BY d.submitted_at DESC
+       LIMIT ? OFFSET ?";
+
+$stmt = $db->prepare($dataSql);
+$stmt->execute($filterStatus ? [$filterStatus, $perPage, $offset] : [$perPage, $offset]);
 $docs  = $stmt->fetchAll();
 $pages = max(1, (int)ceil($total / $perPage));
 

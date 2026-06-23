@@ -69,7 +69,7 @@ switch ($fileType) {
 
     default: // 'notarized'
         $uuid     = $doc['certificate_uuid'] ?? '';
-        $filePath = $base . $uuid . '_notarized.pdf';
+        $filePath = $base . basename($uuid) . '_notarized.pdf';
         $contentType = 'application/pdf';
         $dlName      = 'notarized_' . pathinfo($doc['original_filename'], PATHINFO_FILENAME) . '.pdf';
 

@@ -22,7 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($result['error'])) {
             $error = $result['error'];
         } else {
-            $redirect = $_GET['redirect'] ?? '/dashboard.php';
+            // Prefer POST hidden field, fall back to GET query param
+            $redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? '/dashboard.php';
             // Prevent open redirect: must be a relative path starting with / but not // or /\
             if (!preg_match('/^\/[^\/\\\\]/', $redirect)) {
                 $redirect = '/dashboard.php';

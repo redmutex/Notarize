@@ -48,6 +48,9 @@ if ($action === 'approve') {
     if (!$notes) {
         redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'error=' . urlencode('Rejection reason is required.'));
     }
+    if (mb_strlen($notes) > 5000) {
+        redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'error=' . urlencode('Remarks must be under 5000 characters.'));
+    }
     $notarize->reject($docId, $authUser['id'], $notes);
     redirect($backRedirect . (str_contains($backRedirect, '?') ? '&' : '?') . 'rejected=1');
 }

@@ -94,18 +94,20 @@ class Mailer
 
     public function sendVerification(string $email, string $name, string $token): bool
     {
-        $link = APP_URL . '/verify-email.php?token=' . urlencode($token);
+        $link      = APP_URL . '/verify-email.php?token=' . urlencode($token);
+        $safeName  = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $safeLink  = htmlspecialchars($link, ENT_QUOTES, 'UTF-8');
         $body = <<<HTML
         <h2 style="color:#1a3a5c;margin-top:0">Verify your email address</h2>
-        <p>Hi {$name},</p>
+        <p>Hi {$safeName},</p>
         <p>Thanks for creating your Notarize account. Please confirm your email address to start notarizing documents.</p>
         <p style="text-align:center;margin:32px 0">
-          <a href="{$link}" style="background:#1a3a5c;color:#fff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:bold;display:inline-block">
+          <a href="{$safeLink}" style="background:#1a3a5c;color:#fff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:bold;display:inline-block">
             Verify Email Address
           </a>
         </p>
         <p style="color:#666;font-size:13px">Or paste this link into your browser:<br>
-          <a href="{$link}" style="color:#1a3a5c">{$link}</a>
+          <a href="{$safeLink}" style="color:#1a3a5c">{$safeLink}</a>
         </p>
         <p style="color:#999;font-size:12px">If you did not create this account, you can ignore this email.</p>
         HTML;
@@ -133,6 +135,10 @@ class Mailer
           </a>
         </p>
         HTML;
+        if (!ADMIN_EMAIL) {
+            error_log('[Notarize Mailer] ADMIN_EMAIL not configured — skipping admin review notification');
+            return false;
+        }
         return $this->send(ADMIN_EMAIL, 'Notarize Admin', 'New document pending review — ' . $doc['original_filename'], $body);
     }
 
