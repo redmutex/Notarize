@@ -12,6 +12,7 @@ class Mailer
     {
         $mail = new PHPMailer(true);
         $mail->CharSet  = 'UTF-8';
+        $mail->Hostname = 'mail.onrite.cloud'; // used in Message-ID header
         $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
 
         if (MAIL_DRIVER === 'smtp') {
@@ -40,6 +41,10 @@ class Mailer
             $mail->isHTML(true);
             $mail->Body     = $this->wrap($subject, $htmlBody);
             $mail->AltBody  = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $htmlBody));
+            // Help Gmail deliverability: declare this is transactional, not bulk marketing
+            $mail->addCustomHeader('List-Unsubscribe', '<mailto:' . MAIL_FROM . '?subject=unsubscribe>');
+            $mail->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            $mail->addCustomHeader('Precedence', 'bulk');
             return $mail->send();
         } catch (\Throwable $e) {
             error_log('[Notarize Mailer] ' . $e->getMessage());
