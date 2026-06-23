@@ -68,7 +68,8 @@ jobs:
           script: |
             set -euo pipefail
             cd /var/www/notarize
-            # Restrict .env so only www-data can read it
+            # Restrict .env: owner=robot (write), group=www-data (read), others=none
+            chown robot:www-data .env
             chmod 640 .env
             # Run database migrations
             php migrations/migrate.php
