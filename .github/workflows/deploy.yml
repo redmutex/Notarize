@@ -44,9 +44,14 @@ jobs:
           PAYPAL_WEBHOOK_ID=${{ vars.PAYPAL_WEBHOOK_ID }}
           PAYPAL_MODE=${{ vars.PAYPAL_MODE }}
           ADMIN_EMAIL=danial@redmutex.com
-          MAIL_FROM=noreply@notarize.onrite.cloud
+          MAIL_DRIVER=smtp
+          MAIL_HOST=mail.onrite.cloud
+          MAIL_PORT=587
+          MAIL_ENCRYPTION=tls
+          MAIL_USER=notarize@mail.onrite.cloud
+          MAIL_PASS=${{ secrets.MAIL_SMTP_PASS }}
+          MAIL_FROM=notarize@mail.onrite.cloud
           MAIL_FROM_NAME=Notarize
-          MAIL_DRIVER=sendmail
           EOF
 
       - name: Sync files to server
