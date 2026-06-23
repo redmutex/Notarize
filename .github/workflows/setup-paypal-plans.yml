@@ -1,0 +1,184 @@
+name: Setup PayPal Subscription Plans
+
+on:
+  workflow_dispatch:
+
+# actions:write lets GITHUB_TOKEN manage environment variables via the REST API
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  setup:
+    name: Create PayPal Plans
+    runs-on: ubuntu-latest
+    environment: notarize
+
+    steps:
+      - name: Check if plans already configured
+        id: check
+        env:
+          PAYPAL_PRO_PLAN_ID:   ${{ vars.PAYPAL_PRO_PLAN_ID }}
+          PAYPAL_ELITE_PLAN_ID: ${{ vars.PAYPAL_ELITE_PLAN_ID }}
+        run: |
+          if [ -n "$PAYPAL_PRO_PLAN_ID" ] && [ -n "$PAYPAL_ELITE_PLAN_ID" ]; then
+            echo "Plans already configured — nothing to do."
+            echo "  Pro:   $PAYPAL_PRO_PLAN_ID"
+            echo "  Elite: $PAYPAL_ELITE_PLAN_ID"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Plans not yet configured — will create them now."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create PayPal Products and Billing Plans
+        if: steps.check.outputs.skip == 'false'
+        id: plans
+        env:
+          PAYPAL_CLIENT_ID:     ${{ vars.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_MODE:          ${{ vars.PAYPAL_MODE }}
+        run: |
+          set -euo pipefail
+
+          BASE="https://api-m.paypal.com"
+          [ "${PAYPAL_MODE:-sandbox}" = "sandbox" ] && BASE="https://api-m.sandbox.paypal.com"
+          echo "PayPal base URL: $BASE"
+
+          # Obtain OAuth2 access token
+          TOKEN=$(curl -sf -X POST "$BASE/v1/oauth2/token" \
+            -u "$PAYPAL_CLIENT_ID:$PAYPAL_CLIENT_SECRET" \
+            -d "grant_type=client_credentials" \
+            | jq -r '.access_token')
+          [ -z "$TOKEN" ] && { echo "ERROR: Failed to obtain PayPal access token"; exit 1; }
+          echo "Access token obtained: ${TOKEN:0:20}..."
+
+          pp_post() {
+            curl -sf -X POST "$BASE$1" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$2"
+          }
+
+          # ── Pro ──────────────────────────────────────────────────────
+          echo ""
+          echo "Creating Pro product..."
+          PRO_PROD=$(pp_post /v1/catalogs/products \
+            '{"name":"Notarize Pro","description":"10 document notarizations per month","type":"SERVICE","category":"SOFTWARE"}' \
+            | jq -r '.id')
+          [ -z "$PRO_PROD" ] || [ "$PRO_PROD" = "null" ] && { echo "ERROR: Failed to create Pro product"; exit 1; }
+          echo "Pro product ID: $PRO_PROD"
+
+          echo "Creating Pro billing plan..."
+          PRO_PLAN=$(pp_post /v1/billing/plans "$(jq -nc --arg pid "$PRO_PROD" '{
+            product_id: $pid,
+            name: "Notarize Pro Monthly",
+            description: "10 document notarizations per month",
+            status: "ACTIVE",
+            billing_cycles: [{
+              frequency: { interval_unit: "MONTH", interval_count: 1 },
+              tenure_type: "REGULAR",
+              sequence: 1,
+              total_cycles: 0,
+              pricing_scheme: { fixed_price: { value: "10.00", currency_code: "USD" } }
+            }],
+            payment_preferences: {
+              auto_bill_outstanding: true,
+              setup_fee: { value: "0.00", currency_code: "USD" },
+              setup_fee_failure_action: "CONTINUE",
+              payment_failure_threshold: 2
+            }
+          }')" | jq -r '.id')
+          [ -z "$PRO_PLAN" ] || [ "$PRO_PLAN" = "null" ] && { echo "ERROR: Failed to create Pro billing plan"; exit 1; }
+          echo "Pro plan ID: $PRO_PLAN"
+
+          # ── Elite ─────────────────────────────────────────────────────
+          echo ""
+          echo "Creating Elite product..."
+          ELITE_PROD=$(pp_post /v1/catalogs/products \
+            '{"name":"Notarize Elite","description":"100 document notarizations per month","type":"SERVICE","category":"SOFTWARE"}' \
+            | jq -r '.id')
+          [ -z "$ELITE_PROD" ] || [ "$ELITE_PROD" = "null" ] && { echo "ERROR: Failed to create Elite product"; exit 1; }
+          echo "Elite product ID: $ELITE_PROD"
+
+          echo "Creating Elite billing plan..."
+          ELITE_PLAN=$(pp_post /v1/billing/plans "$(jq -nc --arg pid "$ELITE_PROD" '{
+            product_id: $pid,
+            name: "Notarize Elite Monthly",
+            description: "100 document notarizations per month",
+            status: "ACTIVE",
+            billing_cycles: [{
+              frequency: { interval_unit: "MONTH", interval_count: 1 },
+              tenure_type: "REGULAR",
+              sequence: 1,
+              total_cycles: 0,
+              pricing_scheme: { fixed_price: { value: "50.00", currency_code: "USD" } }
+            }],
+            payment_preferences: {
+              auto_bill_outstanding: true,
+              setup_fee: { value: "0.00", currency_code: "USD" },
+              setup_fee_failure_action: "CONTINUE",
+              payment_failure_threshold: 2
+            }
+          }')" | jq -r '.id')
+          [ -z "$ELITE_PLAN" ] || [ "$ELITE_PLAN" = "null" ] && { echo "ERROR: Failed to create Elite billing plan"; exit 1; }
+          echo "Elite plan ID: $ELITE_PLAN"
+
+          # ── Summary (manual fallback) ─────────────────────────────────
+          echo ""
+          echo "========================================================"
+          echo "  PAYPAL_PRO_PLAN_ID=$PRO_PLAN"
+          echo "  PAYPAL_ELITE_PLAN_ID=$ELITE_PLAN"
+          echo "========================================================"
+          echo "(If auto-save below fails, add these manually in"
+          echo " GitHub → Settings → Environments → notarize → Variables)"
+
+          echo "pro_plan=$PRO_PLAN"     >> "$GITHUB_OUTPUT"
+          echo "elite_plan=$ELITE_PLAN" >> "$GITHUB_OUTPUT"
+
+      - name: Save plan IDs to GitHub environment variables
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          PRO="${{ steps.plans.outputs.pro_plan }}"
+          ELITE="${{ steps.plans.outputs.elite_plan }}"
+
+          save_var() {
+            NAME="$1"
+            VALUE="$2"
+            BODY=$(jq -nc --arg n "$NAME" --arg v "$VALUE" '{name: $n, value: $v}')
+
+            # Try PATCH (update) first
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/environments/notarize/variables/$NAME" \
+              -d "$BODY")
+
+            if [ "$HTTP" = "204" ]; then
+              echo "$NAME updated in GitHub environment."
+              return
+            fi
+
+            # Fall back to POST (create)
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/environments/notarize/variables" \
+              -d "$BODY")
+
+            if [ "$HTTP" = "201" ]; then
+              echo "$NAME created in GitHub environment."
+            else
+              echo "WARNING: Could not auto-save $NAME (HTTP $HTTP)."
+              echo "  → Add it manually: GitHub → Settings → Environments → notarize → Variables"
+              echo "  → $NAME = $VALUE"
+            fi
+          }
+
+          save_var "PAYPAL_PRO_PLAN_ID"   "$PRO"
+          save_var "PAYPAL_ELITE_PLAN_ID" "$ELITE"
